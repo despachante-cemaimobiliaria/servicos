@@ -80,10 +80,10 @@
       return;
     }
     
-    // Validar formato do e-mail
-    const emailRegex = /^[^\s@]+@gmail\.com$/;
+    // Validar formato do e-mail (aceita Gmail e Google Workspace)
+    const emailRegex = /^[^\s@]+@(gmail\.com|googlemail\.com|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/;
     if (!emailRegex.test(userEmail)) {
-      mostrarStatus("Por favor, insira um e-mail Gmail válido", "error");
+      mostrarStatus("Por favor, insira um e-mail válido (Gmail ou Google Workspace)", "error");
       return;
     }
     
@@ -119,7 +119,7 @@
       
       // Mensagens específicas para erros comuns
       if (errorParam === 'access_denied') {
-        errorMessage = `Acesso negado. Verifique se:\n\n1. O e-mail está correto\n2. A credencial OAuth2 permite este e-mail\n3. Você autorizou o acesso na janela do Google`;
+        errorMessage = `Acesso negado. Verifique se:\n\n1. O e-mail está correto\n2. A credencial OAuth2 permite este e-mail (Gmail ou Google Workspace)\n3. Você autorizou o acesso na janela do Google`;
       } else if (errorParam === 'invalid_client') {
         errorMessage = `Erro de configuração OAuth2!\n\nO Client ID não está configurado corretamente.\n\nPara resolver:\n1. Acesse https://console.cloud.google.com\n2. Crie um projeto e ative a Google Sheets API\n3. Crie credenciais OAuth2 (Web application)\n4. Substitua o Client ID no arquivo script.js\n5. Adicione os URIs autorizados: ${window.location.origin}`;
       } else if (errorParam === 'unauthorized_client') {

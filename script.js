@@ -8,6 +8,17 @@
   let accessToken = null;
   let userProfile = null;
   
+  // Verificar se CONFIG está disponível
+  if (typeof CONFIG === 'undefined') {
+    console.error('CONFIG não está definido. Verifique se config.js foi carregado corretamente.');
+    // Criar CONFIG padrão para evitar erros
+    window.CONFIG = {
+      GOOGLE_CLIENT_ID: '',
+      GOOGLE_REDIRECT_URI: 'https://despachante.cemaimobiliaria.com.br/',
+      GOOGLE_SCOPE: 'https://www.googleapis.com/auth/spreadsheets'
+    };
+  }
+
   // Configuração do Google OAuth2
   const GOOGLE_OAUTH_CONFIG = {
     clientId: CONFIG.GOOGLE_CLIENT_ID,

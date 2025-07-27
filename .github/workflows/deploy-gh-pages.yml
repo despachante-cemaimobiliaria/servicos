@@ -30,6 +30,7 @@ jobs:
           cp script.js public/
           cp style.css public/ || true
           cp -r img public/ || true
+          cp CNAME public/ || true
 
       - name: Publicar na branch gh-pages
         uses: peaceiris/actions-gh-pages@v4

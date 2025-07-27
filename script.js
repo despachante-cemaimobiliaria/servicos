@@ -10,11 +10,10 @@
   
   // Configuração do Google OAuth2
   const GOOGLE_OAUTH_CONFIG = {
-    clientId: '',
-    scope: 'https://www.googleapis.com/auth/spreadsheets',
-    redirectUri: window.location.origin + window.location.pathname
+    clientId: CONFIG.GOOGLE_CLIENT_ID,
+    scope: CONFIG.GOOGLE_SCOPE,
+    redirectUri: CONFIG.GOOGLE_REDIRECT_URI
   };
-  console.log(GOOGLE_OAUTH_CONFIG);
   
   const servicosValores = {
     "Registro com financiamento": 800.0,
@@ -44,62 +43,54 @@
       mostrarAlertaCentralizado(mensagem);
       return;
     }
-    const statusDiv = document.getElementById("status");
-    
-    if (!statusDiv) {
-      console.error("Elemento status não encontrado!");
-      return;
-    }
-    
-    statusDiv.textContent = mensagem;
-    statusDiv.className = `status ${tipo}`;
-    statusDiv.style.display = "block";
 
     // Adicionar alerta de sucesso para operações importantes
     if (tipo === "success") {
       // Mostrar alerta nativo do navegador
       setTimeout(() => {
-        mostrarAlertaCentralizado(`✅ Sucesso!\n\n${mensagem}\n\nOperação realizada com êxito!`);
+        mostrarAlertaCentralizado(`✅ Sucesso!\n\n${mensagem}`);
       }, 1000);
     }
 
-    // Auto-ocultar após 5 segundos
-    setTimeout(() => {
-      statusDiv.style.display = "none";
-    }, 5000);
   }
 
   // Funções OAuth2
-  function iniciarLoginOAuth2() {
-    const clientId = document.getElementById("clientId").value.trim();
-    if (!clientId) {
-      mostrarStatus("Por favor, configure o Client ID OAuth2 primeiro", "error");
+  function iniciarLoginGmail() {
+    const userEmail = document.getElementById("userEmail").value.trim();
+    const spreadsheetId = document.getElementById("spreadsheetId").value.trim();
+    
+    if (!userEmail) {
+      mostrarStatus("Por favor, insira seu e-mail Gmail", "error");
       return;
     }
-    GOOGLE_OAUTH_CONFIG.clientId = clientId;
+    
+    if (!spreadsheetId) {
+      mostrarStatus("Por favor, insira o ID da planilha", "error");
+      return;
+    }
+    
+    // Validar formato do e-mail
+    const emailRegex = /^[^\s@]+@gmail\.com$/;
+    if (!emailRegex.test(userEmail)) {
+      mostrarStatus("Por favor, insira um e-mail Gmail válido", "error");
+      return;
+    }
+    
     const state = Math.random().toString(36).substring(2, 15);
     sessionStorage.setItem('oauth_state', state);
+    sessionStorage.setItem('user_email', userEmail);
     
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authUrl.searchParams.set('client_id', clientId);
+    authUrl.searchParams.set('client_id', GOOGLE_OAUTH_CONFIG.clientId);
     authUrl.searchParams.set('redirect_uri', GOOGLE_OAUTH_CONFIG.redirectUri);
     authUrl.searchParams.set('scope', GOOGLE_OAUTH_CONFIG.scope);
     authUrl.searchParams.set('response_type', 'token');
     authUrl.searchParams.set('state', state);
     authUrl.searchParams.set('prompt', 'consent');
+    authUrl.searchParams.set('login_hint', userEmail);
     
-    // Abre o popup
-    const popup = window.open(authUrl.toString(), 'GoogleLogin', 'width=500,height=600');
-    // Listener para receber o token do popup
-    window.addEventListener('message', function handleOAuthMessage(event) {
-      if (event.origin !== window.location.origin) return;
-      if (event.data && event.data.type === 'oauth_token') {
-        window.removeEventListener('message', handleOAuthMessage);
-        window.location.hash = event.data.hash;
-        processarCallbackOAuth2();
-        if (popup) popup.close();
-      }
-    });
+    // Redirecionar na mesma janela (mais confiável que popup)
+    window.location.href = authUrl.toString();
   }
 
   function processarCallbackOAuth2() {
@@ -113,7 +104,18 @@
     const savedState = sessionStorage.getItem('oauth_state');
     
     if (errorParam) {
-      mostrarStatus(`Erro na autenticação: ${errorParam}`, "error");
+      let errorMessage = `Erro na autenticação: ${errorParam}`;
+      
+      // Mensagens específicas para erros comuns
+      if (errorParam === 'access_denied') {
+        errorMessage = `Acesso negado. Verifique se:\n\n1. O e-mail está correto\n2. A credencial OAuth2 permite este e-mail\n3. Você autorizou o acesso na janela do Google`;
+      } else if (errorParam === 'invalid_client') {
+        errorMessage = `Erro de configuração OAuth2!\n\nO Client ID não está configurado corretamente.\n\nPara resolver:\n1. Acesse https://console.cloud.google.com\n2. Crie um projeto e ative a Google Sheets API\n3. Crie credenciais OAuth2 (Web application)\n4. Substitua o Client ID no arquivo script.js\n5. Adicione os URIs autorizados: ${window.location.origin}`;
+      } else if (errorParam === 'unauthorized_client') {
+        errorMessage = `Cliente não autorizado. O e-mail não tem permissão para usar esta aplicação.`;
+      }
+      
+      mostrarStatus(errorMessage, "error");
       return;
     }
     
@@ -133,8 +135,8 @@
       // Obter informações do usuário
       obterPerfilUsuario();
       
-      const mensagemSucesso = `Login realizado com sucesso!\n\nToken de acesso obtido\nSessão iniciada\nRedirecionando...`;
-      mostrarStatus(mensagemSucesso, "success");
+      const userEmail = sessionStorage.getItem('user_email');
+      // Remover mensagem de sucesso do login
       // Iniciar temporizador de expiração do token (30 minutos)
       if (window._oauthExpireTimeout) clearTimeout(window._oauthExpireTimeout);
       window._oauthExpireTimeout = setTimeout(() => {
@@ -154,11 +156,81 @@
       
       if (response.ok) {
         userProfile = await response.json();
+        
+        // Verificar se o e-mail logado corresponde ao e-mail inserido
+        const userEmailInput = document.getElementById("userEmail");
+        const expectedEmail = sessionStorage.getItem('user_email');
+        
+        if (userProfile.email && expectedEmail && userProfile.email.toLowerCase() !== expectedEmail.toLowerCase()) {
+          mostrarStatus(`E-mail logado (${userProfile.email}) não corresponde ao e-mail inserido (${expectedEmail})`, "error");
+          fazerLogout();
+          return;
+        }
+        
         atualizarInterfaceUsuario();
+        
+        // Atualizar display do e-mail
+        const userEmailDisplay = document.getElementById("userEmailDisplay");
+        if (userEmailDisplay) {
+          userEmailDisplay.textContent = userProfile.email || "";
+        }
+        
         salvarConfiguracoes();
+      } else {        
+        const userEmail = sessionStorage.getItem('user_email');
+        if (userEmail) {
+          userProfile = { email: userEmail, name: 'Usuário' };
+          
+          // Salvar e-mail no localStorage para persistir
+          localStorage.setItem("cema_user_email", userEmail);
+          
+          // Atualizar campo de e-mail na interface
+          const emailInput = document.getElementById("userEmail");
+          if (emailInput) {
+            emailInput.value = userEmail;
+          }
+          
+          atualizarInterfaceUsuario();
+          
+          // Atualizar display do e-mail
+          const userEmailDisplay = document.getElementById("userEmailDisplay");
+          if (userEmailDisplay) {
+            userEmailDisplay.textContent = userEmail;
+          }
+          
+          salvarConfiguracoes();
+        } else {
+          fazerLogout();
+        }
       }
     } catch (error) {
       console.error('Erro ao obter perfil do usuário:', error);
+      // Erro de conexão - usar e-mail do sessionStorage como fallback
+      const userEmail = sessionStorage.getItem('user_email');
+      if (userEmail) {
+        userProfile = { email: userEmail, name: 'Usuário' };
+        
+        // Salvar e-mail no localStorage para persistir
+        localStorage.setItem("cema_user_email", userEmail);
+        
+        // Atualizar campo de e-mail na interface
+        const emailInput = document.getElementById("userEmail");
+        if (emailInput) {
+          emailInput.value = userEmail;
+        }
+        
+        atualizarInterfaceUsuario();
+        
+        // Atualizar display do e-mail
+        const userEmailDisplay = document.getElementById("userEmailDisplay");
+        if (userEmailDisplay) {
+          userEmailDisplay.textContent = userEmail;
+        }
+        
+        salvarConfiguracoes();
+      } else {
+        fazerLogout();
+      }
     }
   }
 
@@ -171,15 +243,37 @@
     
     if (accessToken && userProfile) {
       loginButton.style.display = "none";
-      logoutButton.style.display = "inline-block";
-      userInfo.style.display = "block";
+      if (logoutButton) logoutButton.style.display = "inline-block";
+      if (userInfo) userInfo.style.display = "block";
       
-      userName.textContent = userProfile.name || "Usuário";
-      userEmail.textContent = userProfile.email || "";
+      if (userName) userName.textContent = userProfile.name || "Usuário";
+      if (userEmail) userEmail.textContent = userProfile.email || "";
+      
+      // Manter o campo de e-mail como password quando logado
+      const emailInput = document.getElementById("userEmail");
+      if (emailInput) {
+        emailInput.disabled = true;
+        emailInput.style.backgroundColor = "#f8f9fa";
+        // Garantir que o tipo seja password
+        if (emailInput.type !== 'password') {
+          emailInput.type = 'password';
+        }
+      }
     } else {
       loginButton.style.display = "inline-block";
-      logoutButton.style.display = "none";
-      userInfo.style.display = "none";
+      if (logoutButton) logoutButton.style.display = "none";
+      if (userInfo) userInfo.style.display = "none";
+      
+      // Habilitar o campo de e-mail quando não logado
+      const emailInput = document.getElementById("userEmail");
+      if (emailInput) {
+        emailInput.disabled = false;
+        emailInput.style.backgroundColor = "white";
+        // Garantir que o tipo seja password
+        if (emailInput.type !== 'password') {
+          emailInput.type = 'password';
+        }
+      }
     }
   }
 
@@ -187,10 +281,16 @@
     accessToken = null;
     userProfile = null;
     sessionStorage.removeItem('oauth_access_token');
+    sessionStorage.removeItem('user_email');
+    
+    // NÃO limpar o campo de e-mail - manter o e-mail digitado pelo usuário
+    const emailInput = document.getElementById("userEmail");
+    if (emailInput) {
+      emailInput.disabled = false;
+      emailInput.style.backgroundColor = "white";
+    }
     
     atualizarInterfaceUsuario();
-    const mensagemSucesso = `Logout realizado com sucesso!\n\nSessão encerrada\nToken removido\nInterface atualizada`;
-    mostrarStatus(mensagemSucesso, "success");
   }
 
   function verificarTokenSalvo() {
@@ -198,45 +298,55 @@
     if (savedToken) {
       accessToken = savedToken;
       obterPerfilUsuario();
+    } else {
     }
   }
 
   // Funções para gerenciar parceiros
   function mostrarAlertaParceiro(msg) {
-    const alertDiv = document.getElementById("partnerAlert");
-    if (alertDiv) {
-      alertDiv.textContent = msg;
-      alertDiv.style.display = "block";
-      // Some após 4 segundos
-      clearTimeout(window._partnerAlertTimeout);
-      window._partnerAlertTimeout = setTimeout(() => {
-        alertDiv.style.display = "none";
-      }, 4000);
-    }
+    mostrarAlertaCentralizado(msg);
   }
 
   // Atualizar função adicionarParceiro para mostrar alerta se inválido
   function adicionarParceiro() {
-    if (!validarCamposParceiro()) {
-      mostrarAlertaParceiro("Preencha corretamente todos os campos para adicionar um parceiro.");
-      return;
-    }
+    const btnAdd = document.getElementById("btnAddPartner");
+    
     const nome = document.getElementById("partnerName").value.trim();
     const percentual = parseFloat(document.getElementById("partnerPercentage").value);
+    
 
-    if (!nome) {
-      mostrarStatus("Por favor, insira o nome do parceiro", "error");
+    // Verificar se apenas um dos campos está preenchido
+    if (nome && (isNaN(percentual) || percentual === "")) {
+      mostrarAlertaParceiro("Por favor, preencha também o percentual do parceiro");
       return;
     }
 
+    if (!nome && !isNaN(percentual) && percentual > 0) {
+      mostrarAlertaParceiro("Por favor, preencha também o nome do parceiro");
+      return;
+    }
+
+    // Verificar se ambos os campos estão vazios
+    if (!nome && (isNaN(percentual) || percentual === "")) {
+      mostrarAlertaParceiro("Por favor, preencha o nome e o percentual do parceiro");
+      return;
+    }
+
+    // Verificar se o nome está vazio (caso específico)
+    if (!nome) {
+      mostrarAlertaParceiro("Por favor, insira o nome do parceiro");
+      return;
+    }
+
+    // Verificar se o percentual é inválido
     if (isNaN(percentual) || percentual <= 0 || percentual > 100) {
-      mostrarStatus("Por favor, insira um percentual válido (0-100)", "error");
+      mostrarAlertaParceiro("Por favor, insira um percentual válido (0-100)");
       return;
     }
 
     // Verificar se o nome já existe
     if (parceiros.some(p => p.nome.toLowerCase() === nome.toLowerCase())) {
-      mostrarStatus("Já existe um parceiro com este nome", "error");
+      mostrarAlertaParceiro("Já existe um parceiro com este nome");
       return;
     }
 
@@ -255,9 +365,7 @@
     calcularValores();
     salvarParceiros();
     
-    // Mostrar alerta de sucesso detalhado
-    const mensagemSucesso = `Parceiro "${nome}" adicionado com sucesso!\n\nPercentual: ${percentual}%\nTotal de parceiros: ${parceiros.length}\nPercentual total: ${percentualTotal.toFixed(2)}%`;
-    mostrarStatus(mensagemSucesso, "success");
+    // Remover mensagem de sucesso da adição de parceiro
   }
 
   function removerParceiro(nome) {
@@ -307,7 +415,6 @@
     const tbody = document.getElementById("corpoTabela");
     
     if (!tbody) {
-      console.log("Elemento corpoTabela não encontrado, pulando adição de linha");
       return;
     }
     
@@ -323,18 +430,6 @@
                 <td>
                     <select onchange="atualizarValor(this); calcularValores()">
                         <option value="">Selecione o serviço</option>
-                        <option value="Registro com financiamento">Registro com financiamento</option>
-                        <option value="Registro à vista">Registro à vista</option>
-                        <option value="Averbação">Averbação</option>
-                        <option value="Guia de Laudêmio do SPU">Guia de Laudêmio do SPU</option>
-                        <option value="Laudêmio da prefeitura">Laudêmio da prefeitura</option>
-                        <option value="Laudêmio das famílias">Laudêmio das famílias</option>
-                        <option value="Laudêmio do São Bento">Laudêmio do São Bento</option>
-                        <option value="Laudêmio da Igreja da Glória">Laudêmio da Igreja da Glória</option>
-                        <option value="Laudêmio da Mitra">Laudêmio da Mitra</option>
-                        <option value="Emissão de guia de ITBI">Emissão de guia de ITBI</option>
-                        <option value="Emissão de certidão por nome">Emissão de certidão por nome</option>
-                        <option value="Transferência de conta">Transferência de conta</option>
                     </select>
                 </td>
                 <td><input type="date" onchange="calcularValores()"></td>
@@ -349,6 +444,9 @@
             `;
 
     tbody.appendChild(novaLinha);
+    
+    // Atualizar os selects para incluir todos os serviços (padrão + personalizados)
+    atualizarSelectsServicos();
   }
 
   function atualizarValor(selectElement) {
@@ -373,7 +471,6 @@
     let totalDespesas = 0;
 
     if (linhas.length === 0) {
-      console.log("Nenhuma linha encontrada na tabela, pulando cálculo");
       return;
     }
 
@@ -382,7 +479,6 @@
       const inputDespesas = linha.querySelectorAll('input[type="number"]')[1];
       
       if (!inputValor || !inputDespesas) {
-        console.log("Inputs de valor não encontrados na linha, pulando");
         return;
       }
       
@@ -481,19 +577,28 @@
   }
 
   async function enviarParaGoogleSheets() {
+    // Verificar se o token foi carregado corretamente
+    if (!accessToken) {
+      const savedToken = sessionStorage.getItem('oauth_access_token');
+      if (savedToken) {
+        accessToken = savedToken;
+      }
+    }
+    
     const spreadsheetId = document.getElementById("spreadsheetId").value;
     const mesAno = document.getElementById("mes").selectedOptions[0].text;
-    const clientId = document.getElementById("clientId").value.trim();
+    const userEmail = document.getElementById("userEmail").value.trim();
+    
     if (!accessToken) {
-      mostrarAlertaCentralizado("Por favor, faça login com Google primeiro");
+      mostrarAlertaCentralizado("Por favor, faça login com Gmail primeiro");
       return;
     }
     if (!spreadsheetId) {
       mostrarStatus("Por favor, configure o ID da planilha", "error");
       return;
     }
-    if (!clientId) {
-      mostrarAlertaCentralizado("Por favor, preencha o Client ID OAuth2 antes de enviar.");
+    if (!userEmail) {
+      mostrarAlertaCentralizado("Por favor, preencha o e-mail Gmail antes de enviar.");
       return;
     }
     if (!parceiros || parceiros.length === 0) {
@@ -632,11 +737,19 @@
   }
 
   async function carregarDadosGoogleSheets() {
+    // Verificar se o token foi carregado corretamente
+    if (!accessToken) {
+      const savedToken = sessionStorage.getItem('oauth_access_token');
+      if (savedToken) {
+        accessToken = savedToken;
+      }
+    }
+    
     const spreadsheetId = document.getElementById("spreadsheetId").value;
     const mesAno = document.getElementById("mes").selectedOptions[0].text;
 
     if (!accessToken) {
-      mostrarStatus("Por favor, faça login com Google primeiro", "error");
+      mostrarStatus("Por favor, faça login com Gmail primeiro", "error");
       return;
     }
 
@@ -824,7 +937,7 @@
   // Função para criar a planilha automaticamente
   async function criarPlanilhaAutomatica() {
     if (!accessToken) {
-      mostrarStatus("Por favor, faça login com Google primeiro", "error");
+      mostrarStatus("Por favor, faça login com Gmail primeiro", "error");
       return;
     }
 
@@ -901,12 +1014,12 @@
       return;
     }
     // 1. Solicitar autorização temporária para o Drive
-    const clientId = document.getElementById("clientId").value.trim();
+    const userEmail = document.getElementById("userEmail").value.trim();
     const state = Math.random().toString(36).substring(2, 15);
     const redirectUri = window.location.origin + window.location.pathname;
     const driveScope = 'https://www.googleapis.com/auth/drive';
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authUrl.searchParams.set('client_id', clientId);
+    authUrl.searchParams.set('client_id', GOOGLE_OAUTH_CONFIG.clientId);
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('scope', driveScope);
     authUrl.searchParams.set('response_type', 'token');
@@ -960,7 +1073,7 @@
       // 2. Buscar sheetIds das abas desejadas
       const abasParaLimpar = [
         "total no ano", "janeiro", "fevereiro", "março", "abril", "maio", "junho",
-        "julho", "agosto", "setembro", "novembro", "dezembro"
+        "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"
       ];
       const sheetsResp = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${newSpreadsheetId}`,
@@ -1028,22 +1141,39 @@
 
   // Função para salvar configurações no localStorage
   function salvarConfiguracoes() {
-    const clientId = document.getElementById("clientId").value;
+    const userEmail = document.getElementById("userEmail").value;
     const spreadsheetId = document.getElementById("spreadsheetId").value;
-    if (clientId) localStorage.setItem("cema_client_id", clientId);
-    if (spreadsheetId) localStorage.setItem("cema_spreadsheet_id", spreadsheetId);
+    
+    localStorage.setItem("cema_user_email", userEmail);
+    localStorage.setItem("cema_spreadsheet_id", spreadsheetId);
   }
 
   // Função para carregar configurações do localStorage
   function carregarConfiguracoes() {
-    const clientId = localStorage.getItem("cema_client_id");
+    const userEmail = localStorage.getItem("cema_user_email");
     const spreadsheetId = localStorage.getItem("cema_spreadsheet_id");
-    if (clientId) document.getElementById("clientId").value = clientId;
-    if (spreadsheetId) document.getElementById("spreadsheetId").value = spreadsheetId;
+    
+    if (userEmail) {
+      const emailInput = document.getElementById("userEmail");
+      if (emailInput) {
+        emailInput.value = userEmail;
+      }
+    }
+    
+    if (spreadsheetId) {
+      const spreadsheetInput = document.getElementById("spreadsheetId");
+      if (spreadsheetInput) {
+        spreadsheetInput.value = spreadsheetId;
+      }
+    }
   }
 
   // Event listeners para salvar configurações
+  const userEmailElement = document.getElementById("userEmail");
   const spreadsheetIdElement = document.getElementById("spreadsheetId");
+  if (userEmailElement) {
+    userEmailElement.addEventListener("change", salvarConfiguracoes);
+  }
   if (spreadsheetIdElement) {
     spreadsheetIdElement.addEventListener("change", salvarConfiguracoes);
   }
@@ -1069,15 +1199,27 @@
 
   // Função para exportar relatório completo
   async function exportarRelatorioCompleto() {
+    // Verificar se o token foi carregado corretamente
+    if (!accessToken) {
+      const savedToken = sessionStorage.getItem('oauth_access_token');
+      if (savedToken) {
+        accessToken = savedToken;
+      }
+    }
+    
     const spreadsheetId = document.getElementById("spreadsheetId").value;
+    const userEmail = document.getElementById("userEmail").value.trim();
 
     if (!accessToken) {
-      mostrarStatus("Por favor, faça login com Google primeiro", "error");
+      mostrarAlertaCentralizado("Por favor, faça login com Gmail primeiro");
       return;
     }
-
     if (!spreadsheetId) {
-      mostrarStatus("Configure o ID da planilha primeiro", "error");
+      mostrarAlertaCentralizado("Por favor, informe o ID da planilha");
+      return;
+    }
+    if (!userEmail) {
+      mostrarAlertaCentralizado("Por favor, preencha o e-mail Gmail antes de gerar o relatório.");
       return;
     }
 
@@ -1213,13 +1355,9 @@
       percentualInput.classList.add("is-valid");
     }
 
-    if (nomeValido && percentualValido) {
-      btnAdd.disabled = false;
-      return true;
-    } else {
-      btnAdd.disabled = true;
-      return false;
-    }
+    // Não desabilitar o botão - deixar a função adicionarParceiro mostrar os alertas
+    btnAdd.disabled = false;
+    return nomeValido && percentualValido;
   }
 
   // Função para mostrar alerta centralizado na tela
@@ -1274,6 +1412,58 @@
     ativarListenersValoresServicos();
   }
 
+  // Função para remover serviços adicionados
+  function removerServicoAdicionado() {
+    const nomeInput = document.getElementById('novoServicoNome');
+    const nome = nomeInput.value.trim();
+    
+    if (!nome) {
+      mostrarAlertaCentralizado('Digite o nome do serviço que deseja remover.');
+      return;
+    }
+    
+    // Verificar se é um serviço padrão (não pode ser removido)
+    const servicosPadrao = [
+      "Registro com financiamento", "Registro à vista", "Averbação", 
+      "Guia de Laudêmio do SPU", "Laudêmio da prefeitura", "Laudêmio das famílias",
+      "Laudêmio do São Bento", "Laudêmio da Igreja da Glória", "Laudêmio da Mitra",
+      "Emissão de guia de ITBI", "Emissão de certidão por nome", "Transferência de conta"
+    ];
+    
+    if (servicosPadrao.includes(nome)) {
+      mostrarAlertaCentralizado('Não é possível remover serviços padrão do sistema.');
+      return;
+    }
+    
+    if (!servicosValores[nome]) {
+      mostrarAlertaCentralizado('Serviço não encontrado.');
+      return;
+    }
+    
+    // Remover do objeto
+    delete servicosValores[nome];
+    
+    // Remover visualmente
+    const grid = document.getElementById('servicesGrid');
+    const serviceItems = grid.querySelectorAll('.service-item');
+    serviceItems.forEach(item => {
+      const span = item.querySelector('span');
+      if (span && span.textContent === nome) {
+        item.remove();
+      }
+    });
+    
+    // Limpar campos
+    nomeInput.value = '';
+    document.getElementById('novoServicoValor').value = '';
+    
+    // Atualizar selects de serviço nas linhas da tabela
+    atualizarSelectsServicos();
+    ativarListenersValoresServicos();
+    
+    mostrarAlertaCentralizado(`Serviço "${nome}" removido com sucesso!`);
+  }
+
   // Atualizar selects de serviço nas linhas da tabela
   function atualizarSelectsServicos() {
     const selects = document.querySelectorAll('#corpoTabela select');
@@ -1309,7 +1499,7 @@
     const corpoTabela = document.getElementById("corpoTabela");
     if (corpoTabela) {
       corpoTabela.innerHTML = "";
-      adicionarLinha();
+      adicionarLinha(); // Isso já chama atualizarSelectsServicos()
       calcularValores(); // Atualiza o resumo após limpar
       mostrarAlertaCentralizado("Tabela limpa! Pronto para nova inserção.");
     }
@@ -1317,26 +1507,35 @@
 
   // Inicialização
   document.addEventListener("DOMContentLoaded", function () {
+    // Verificar se há um callback OAuth2 na URL
+    if (window.location.hash && window.location.hash.includes('access_token')) {
+      processarCallbackOAuth2();
+    }
+    
     // Carregar valores salvos antes de qualquer manipulação
     carregarConfiguracoes();
     // Adicionar listeners após restaurar valores
-    const clientIdInput = document.getElementById("clientId");
+    const userEmailInput = document.getElementById("userEmail");
     const spreadsheetIdInput = document.getElementById("spreadsheetId");
-    if (clientIdInput) {
-      clientIdInput.addEventListener("input", salvarConfiguracoes);
-      clientIdInput.addEventListener("change", salvarConfiguracoes);
+    
+    if (userEmailInput) {
+      userEmailInput.addEventListener('input', function() {
+        localStorage.setItem("cema_user_email", this.value);
+      });
     }
+    
     if (spreadsheetIdInput) {
-      spreadsheetIdInput.addEventListener("input", salvarConfiguracoes);
-      spreadsheetIdInput.addEventListener("change", salvarConfiguracoes);
+      spreadsheetIdInput.addEventListener('input', function() {
+        localStorage.setItem("cema_spreadsheet_id", this.value);
+      });
     }
     carregarParceiros();
+    verificarTokenSalvo();
     adicionarLinha();
 
     // Definir mês atual
     const hoje = new Date();
-    const mesAtual =
-      hoje.getFullYear() + "-" + String(hoje.getMonth() + 1).padStart(2, "0");
+    const mesAtual = hoje.getFullYear() + "-" + String(hoje.getMonth() + 1).padStart(2, "0");
     const mesElement = document.getElementById("mes");
     if (mesElement) {
       mesElement.value = mesAtual;
@@ -1347,49 +1546,71 @@
       calcularValores();
     }, 100);
 
-    // Processar callback OAuth2
-    processarCallbackOAuth2();
+    // Configurar ícones de olho para mostrar/esconder senhas
+    configurarIconesOlho();
     
-    // Verificar token salvo
-    verificarTokenSalvo();
-
+    // Ativar listeners de valores dos serviços
     ativarListenersValoresServicos();
   });
 
-  // Adicionar botão para criar nova planilha
-  document.addEventListener("DOMContentLoaded", function() {
-    const configSection = document.querySelector(".config-section");
-    if (configSection) {
-      configSection.innerHTML += `
-            <div style="margin-top: 15px;">
-                <button class="btn btn-add" onclick="criarCopiaPlanilhaComLimpeza()">🆕 Criar Nova Planilha</button>
-                <button class="btn btn-sync" onclick="exportarRelatorioCompleto()">📊 Gerar Relatório Completo</button>
-            </div>
-        `;
+  // Função para configurar os ícones de olho
+  function configurarIconesOlho() {
+    // ID da Planilha
+    const olhoSpreadsheet = document.getElementById('olho-spreadsheet');
+    const inputSpreadsheet = document.getElementById('spreadsheetId');
+    if (olhoSpreadsheet && inputSpreadsheet) {
+      olhoSpreadsheet.addEventListener('click', function () {
+        if (inputSpreadsheet.type === 'password') {
+          inputSpreadsheet.type = 'text';
+          olhoSpreadsheet.style.opacity = 0.5; // opcional: visual feedback
+        } else {
+          inputSpreadsheet.type = 'password';
+          olhoSpreadsheet.style.opacity = 1;
+        }
+      });
     }
-  });
 
-  // Expor funções para o escopo global
+    // E-mail Gmail
+    const olhoEmail = document.getElementById('olho-email');
+    const inputEmail = document.getElementById('userEmail');
+    if (olhoEmail && inputEmail) {
+      olhoEmail.addEventListener('click', function () {
+        if (inputEmail.type === 'password') {
+          inputEmail.type = 'text';
+          olhoEmail.style.opacity = 0.5; // opcional: visual feedback
+        } else {
+          inputEmail.type = 'password';
+          olhoEmail.style.opacity = 1;
+        }
+      });
+    }
+  }
+
+  // Script para popup OAuth2 - enviar token para janela principal
+  if (window.opener && window.location.hash.includes('access_token')) {
+    try {
+      window.opener.postMessage({ type: 'oauth_token', hash: window.location.hash }, window.location.origin);
+    } catch (e) {}
+  }
+
+  // Exportar funções para uso global
   window.adicionarParceiro = adicionarParceiro;
   window.removerParceiro = removerParceiro;
   window.adicionarLinha = adicionarLinha;
-  window.atualizarValor = atualizarValor;
   window.removerLinha = removerLinha;
   window.calcularValores = calcularValores;
+  window.atualizarValor = atualizarValor;
   window.enviarParaGoogleSheets = enviarParaGoogleSheets;
   window.carregarDadosGoogleSheets = carregarDadosGoogleSheets;
   window.criarPlanilhaAutomatica = criarPlanilhaAutomatica;
-  window.exportarRelatorioCompleto = exportarRelatorioCompleto;
-  window.iniciarLoginOAuth2 = iniciarLoginOAuth2;
-  window.processarCallbackOAuth2 = processarCallbackOAuth2;
-  window.verificarTokenSalvo = verificarTokenSalvo;
-  window.fazerLogout = fazerLogout;
-  window.mostrarAlertaSucesso = mostrarAlertaSucesso;
-  window.validarCamposParceiro = validarCamposParceiro;
-  window.mostrarAlertaParceiro = mostrarAlertaParceiro;
-  window.adicionarNovoServico = adicionarNovoServico;
-  window.atualizarSelectsServicos = atualizarSelectsServicos;
-  window.limparTabelaServicos = limparTabelaServicos;
   window.criarCopiaPlanilhaComLimpeza = criarCopiaPlanilhaComLimpeza;
+  window.exportarRelatorioCompleto = exportarRelatorioCompleto;
+  window.limparTabelaServicos = limparTabelaServicos;
+  window.adicionarNovoServico = adicionarNovoServico;
+  window.removerServicoAdicionado = removerServicoAdicionado;
+  window.iniciarLoginGmail = iniciarLoginGmail;
+  window.fazerLogout = fazerLogout;
+  window.verificarTokenSalvo = verificarTokenSalvo;
+  window.validarCamposParceiro = validarCamposParceiro;
 })();
 

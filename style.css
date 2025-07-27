@@ -191,7 +191,6 @@ main {
 
 #userEmail {
   color: #0f5132;
-  font-style: italic;
 }
 
 /* ===== SELEÇÃO DE MÊS ===== */
@@ -327,7 +326,7 @@ div#input-name-parceiro {
 /* ===== BOTÕES GERAIS ===== */
 .btn {
   color: white;
-  padding: 12px 24px;
+  padding: 12px 20px;
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -340,6 +339,10 @@ div#input-name-parceiro {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .btn-add {
@@ -936,7 +939,7 @@ select:focus {
   padding: 32px 36px;
   font-size: 1.25em;
   font-weight: 600;
-  z-index: 9999;
+  z-index: 99999;
   text-align: center;
   min-width: 280px;
   max-width: 90vw;
@@ -972,6 +975,10 @@ select:focus {
   padding-top: 0;
   padding-bottom: 0;
   background: #B71419;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .remove-partner {
@@ -999,8 +1006,12 @@ select:focus {
   .btn-logout,
   .remove-partner,
   .btn-clear {
-    height: 34px;
-    min-height: 34px;
-    font-size: 0.98em;
+    height: 40px;
+    min-height: 40px;
+    font-size: 13px;
+    padding: 10px 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }

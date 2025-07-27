@@ -1,0 +1,19 @@
+# Arquivos de configuração com credenciais
+config.env
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dependências
+node_modules/
+
+# Arquivos temporários
+*.tmp
+*.temp
+
+# Cache
+.cache/ 

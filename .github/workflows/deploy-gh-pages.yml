@@ -1,0 +1,40 @@
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v3
+
+      - name: Criar pasta de publicação
+        run: mkdir public
+
+      - name: Gerar config.js com secrets
+        run: |
+          echo "// Arquivo gerado automaticamente pelo GitHub Actions" > public/config.js
+          echo "window.CONFIG = {" >> public/config.js
+          echo "  GOOGLE_CLIENT_ID: '${{ secrets.GOOGLE_CLIENT_ID }}'," >> public/config.js
+          echo "  GOOGLE_REDIRECT_URI: '${{ secrets.GOOGLE_REDIRECT_URI }}'," >> public/config.js
+          echo "  GOOGLE_SCOPE: '${{ secrets.GOOGLE_SCOPE }}'" >> public/config.js
+          echo "};" >> public/config.js
+
+      - name: Copiar arquivos do site para a pasta de publicação
+        run: |
+          cp servicos/index.html public/
+          cp servicos/script.js public/
+          cp servicos/style.css public/ || true
+          cp -r servicos/img public/ || true
+
+      - name: Publicar na branch gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
+          force_orphan: true

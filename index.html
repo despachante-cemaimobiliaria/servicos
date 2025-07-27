@@ -25,6 +25,15 @@
             <div class="config-grid">
                 <div>
                     <div class="label-float input-password">
+                        <input type="password" id="userEmail" class="config-input" placeholder=" " name="userEmail"
+                            required>
+                        <label for="userEmail">E-mail Gmail</label>
+                        <img src="https://cdn0.iconfinder.com/data/icons/ui-icons-pack/100/ui-icon-pack-14-512.png"
+                            id="olho-email" class="olho" alt="Mostrar senha">
+                    </div>
+                </div>
+                <div>
+                    <div class="label-float input-password">
                         <input type="password" id="spreadsheetId" class="config-input" placeholder=" "
                             name="spreadsheetId" value="" required>
                         <label for="spreadsheetId">ID da Planilha</label>
@@ -32,42 +41,53 @@
                             id="olho-spreadsheet" class="olho" alt="Mostrar senha">
                     </div>
                 </div>
-                <div>
-                    <div class="label-float input-password">
-                        <input type="password" id="clientId" class="config-input" placeholder=" " name="clientId"
-                            required>
-                        <label for="clientId">Client ID OAuth2</label>
-                        <img src="https://cdn0.iconfinder.com/data/icons/ui-icons-pack/100/ui-icon-pack-14-512.png"
-                            id="olho-client" class="olho" alt="Mostrar senha">
-                    </div>
-                </div>
                 <div style="display: flex; align-items: flex-end; min-width: 180px;">
-                    <button id="loginButton" class="btn btn-oauth" onclick="iniciarLoginOAuth2()">🔐 Fazer Login com
-                        Google</button>
+                    <button id="loginButton" class="btn btn-oauth" onclick="iniciarLoginGmail()">🔐 Fazer Login com
+                        Gmail</button>
                 </div>
             </div>
+            
+            <!-- Informações do usuário logado -->
+            <div id="userInfo" class="user-info" style="display: none;">
+                <span><strong>Usuário logado:</strong></span>
+                <span id="userName">Nome do usuário</span>
+                <span id="userEmailDisplay">email@exemplo.com</span>
+                <button id="logoutButton" class="btn-logout" onclick="fazerLogout()" style="margin-top: 10px;">🚪 Fazer Logout</button>
+            </div>
+            
             <p class="config-help">
-                <strong>Como configurar OAuth2:</strong><br>
-                1. Acesse <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a><br>
-                2. Crie um projeto ou selecione um existente<br>
-                3. Ative a Google Sheets API<br>
-                4. Vá em "Credentials" → "Create Credentials" → "OAuth 2.0 Client IDs"<br>
-                5. Configure como "Web application"<br>
-                6. Adicione "http://localhost:8000" e "http://127.0.0.1:8000" como URIs autorizados<br>
-                7. Copie o Client ID e cole no campo acima<br>
-                8. Clique em "Fazer Login com Google"
+                <strong>Como configurar:</strong><br>
+                1. Digite seu e-mail Gmail no campo acima<br>
+                2. Cole o ID da planilha Google Sheets<br>
+                3. Clique em "Fazer Login com Gmail"<br>
+                4. Autorize o acesso à sua conta Google<br>
+                5. O sistema estará pronto para uso!<br><br>
+                <strong>⚠️ Importante:</strong><br>
+                • Apenas e-mails autorizados na lista terão acesso ao sistema<br>
+                • Se o login falhar, verifique se seu e-mail está na lista de usuários permitidos<br>
+                • Para adicionar novos e-mails, edite a função verificarEmailAutorizado() no código<br><br>
+                <strong>🔧 Para Desenvolvedores:</strong><br>
+                • Se aparecer erro "invalid_client", configure o Client ID OAuth2 no arquivo script.js<br>
+                • Acesse <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a><br>
+                • Crie credenciais OAuth2 e substitua o Client ID no código<br>
+                • A lista de e-mails autorizados é obrigatória - não há modo de teste
             </p>
+            
+            <div style="margin-top: 15px;">
+                <button class="btn btn-add" onclick="criarCopiaPlanilhaComLimpeza()">🆕 Criar Planilha Automática</button>
+                <button class="btn btn-sync" onclick="exportarRelatorioCompleto()">📊 Gerar Relatório</button>
+            </div>
         </section>
         <section class="month-selector">
             <label for="mes">Mês/Ano: </label>
             <select id="mes">
-                <option value="2025-01">Janeiro</option>
+                <option value="2025-01" selected>Janeiro</option>
                 <option value="2025-02">Fevereiro</option>
                 <option value="2025-03">Março</option>
                 <option value="2025-04">Abril</option>
                 <option value="2025-05">Maio</option>
                 <option value="2025-06">Junho</option>
-                <option value="2025-07" selected>Julho</option>
+                <option value="2025-07">Julho</option>
                 <option value="2025-08">Agosto</option>
                 <option value="2025-09">Setembro</option>
                 <option value="2025-10">Outubro</option>
@@ -156,11 +176,16 @@
                     <input type="number" class="service-value-input" data-nome="Transferência de conta" value="100" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
                 </div>
             </div>
-            <div class="add-service-form" style="margin-top: 16px; display: flex; gap: 8px; align-items: flex-end;">
+            <div class="add-service-form" style="margin-top: 16px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
                 <input type="text" id="novoServicoNome" class="partner-input" placeholder="Nome do novo serviço" style="min-width: 180px;">
                 <input type="number" id="novoServicoValor" class="partner-input" placeholder="Valor (R$)" min="0" step="0.01" style="width: 120px;">
                 <button class="btn btn-add" onclick="adicionarNovoServico()">+ Adicionar Serviço</button>
+                <button class="btn btn-clear" onclick="removerServicoAdicionado()">🗑️ Remover</button>
             </div>
+            <p style="margin-top: 8px; font-size: 0.9em; color: #666;">
+                <strong>💡 Dica:</strong> Para remover um serviço, digite apenas o nome no campo "Nome do novo serviço" e clique em "Remover Serviço". 
+                Serviços padrão não podem ser removidos.
+            </p>
         </section>
         <div class="centered-actions">
             <button class="btn btn-add" onclick="adicionarLinha()">+ Adicionar Novo Serviço</button>
@@ -221,54 +246,13 @@
     
     <footer class="footer">
         <div class="footer-content">
-            <p>&copy; 2025 CEMA Consultoria Imobiliária - Sistema de Controle Financeiro</p>
-            <p>Desenvolvido para garantir máxima eficiência em seus processos.</p>
+            <p>&copy; 2025 CEMA Imobiliária - Sistema de Controle Financeiro</p>
+            <p>Desenvolvido com para otimizar seus processos</p>
         </div>
     </footer>
     
+    <script src="config.js"></script>
     <script src="script.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // ID da Planilha
-            const olhoSpreadsheet = document.getElementById('olho-spreadsheet');
-            const inputSpreadsheet = document.getElementById('spreadsheetId');
-            if (olhoSpreadsheet && inputSpreadsheet) {
-                olhoSpreadsheet.addEventListener('click', function () {
-                    if (inputSpreadsheet.type === 'password') {
-                        inputSpreadsheet.type = 'text';
-                        olhoSpreadsheet.style.opacity = 0.5; // opcional: visual feedback
-                    } else {
-                        inputSpreadsheet.type = 'password';
-                        olhoSpreadsheet.style.opacity = 1;
-                    }
-                });
-            }
-
-            // Client ID OAuth2
-            const olhoClient = document.getElementById('olho-client');
-            const inputClient = document.getElementById('clientId');
-            if (olhoClient && inputClient) {
-                olhoClient.addEventListener('click', function () {
-                    if (inputClient.type === 'password') {
-                        inputClient.type = 'text';
-                        olhoClient.style.opacity = 0.5; // opcional: visual feedback
-                    } else {
-                        inputClient.type = 'password';
-                        olhoClient.style.opacity = 1;
-                    }
-                });
-            }
-        });
-    </script>
-    <script>
-// Se for popup de OAuth2, envie o token para a janela principal
-if (window.opener && window.location.hash.includes('access_token')) {
-  try {
-    window.opener.postMessage({ type: 'oauth_token', hash: window.location.hash }, window.location.origin);
-  } catch (e) {}
-}
-</script>
 </body>
 
 </html>
-

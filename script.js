@@ -1205,7 +1205,7 @@
             "Authorization": `Bearer ${accessToken}`
           },
           body: JSON.stringify({
-            name: "CEMA Imobiliária - Controle Financeiro (Cópia)",
+            name: "CEMA Imobiliária - Controle Financeiro",
             parents: [] // Copiar para a raiz do Drive
           })
         }

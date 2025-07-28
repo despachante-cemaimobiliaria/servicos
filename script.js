@@ -63,6 +63,40 @@
       });
     });
     
+    // Controlar acesso ao link Google Cloud Console e seção de desenvolvedores
+    const googleCloudLinks = document.querySelectorAll('a[href*="console.cloud.google.com"]');
+    googleCloudLinks.forEach(link => {
+      if (!isAutorizado) {
+        link.style.pointerEvents = 'none';
+        link.style.opacity = '0.5';
+        link.style.cursor = 'not-allowed';
+        link.style.textDecoration = 'line-through';
+        link.title = 'Acesso restrito - Apenas emails autorizados';
+        // Remover o href para evitar cliques
+        link.removeAttribute('href');
+        link.removeAttribute('target');
+      } else {
+        link.style.pointerEvents = 'auto';
+        link.style.opacity = '1';
+        link.style.cursor = 'pointer';
+        link.style.textDecoration = 'underline';
+        link.title = '';
+        // Restaurar o href
+        link.href = 'https://console.cloud.google.com';
+        link.target = '_blank';
+      }
+    });
+    
+    // Controlar visibilidade da seção "Para Desenvolvedores"
+    const devSection = document.querySelector('.dev-section');
+    if (devSection) {
+      if (!isAutorizado) {
+        devSection.style.display = 'none';
+      } else {
+        devSection.style.display = 'block';
+      }
+    }
+    
     // Mostrar mensagem de status para usuários não autorizados
     if (!isAutorizado && email) {
       const clientId = obterClientIdPorEmail(email);
@@ -195,7 +229,14 @@
       if (errorParam === 'access_denied') {
         errorMessage = `Acesso negado. Verifique se:\n\n1. O e-mail está correto\n2. A credencial OAuth2 permite este e-mail (Gmail ou Google Workspace)\n3. Você autorizou o acesso na janela do Google`;
       } else if (errorParam === 'invalid_client') {
-        errorMessage = `Erro de configuração OAuth2!\n\nO Client ID não está configurado corretamente.\n\nPara resolver:\n1. Acesse https://console.cloud.google.com\n2. Crie um projeto e ative a Google Sheets API\n3. Crie credenciais OAuth2 (Web application)\n4. Substitua o Client ID no arquivo script.js\n5. Adicione os URIs autorizados: ${window.location.origin}`;
+        const userEmail = sessionStorage.getItem('user_email');
+        const isAutorizado = verificarEmailAutorizado(userEmail);
+        
+        if (isAutorizado) {
+          errorMessage = `Erro de configuração OAuth2!\n\nO Client ID não está configurado corretamente.\n\nPara resolver:\n1. Acesse https://console.cloud.google.com\n2. Crie um projeto e ative a Google Sheets API\n3. Crie credenciais OAuth2 (Web application)\n4. Substitua o Client ID no arquivo script.js\n5. Adicione os URIs autorizados: ${window.location.origin}`;
+        } else {
+          errorMessage = `Erro de configuração OAuth2!\n\nO Client ID não está configurado corretamente.\n\nEntre em contato com o administrador do sistema para resolver este problema.`;
+        }
       } else if (errorParam === 'unauthorized_client') {
         errorMessage = `Cliente não autorizado. O e-mail não tem permissão para usar esta aplicação.`;
       }

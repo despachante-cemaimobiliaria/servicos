@@ -1275,7 +1275,7 @@
         );
       }
 
-      // 4. Copiar dados das abas (apenas cabeçalhos e estrutura)
+      // 4. Copiar TODOS os dados das abas
       const copyRequests = [];
       
       modelData.sheets.forEach((sheet, index) => {
@@ -1283,8 +1283,8 @@
           const rowData = sheet.data[0].rowData;
           const values = [];
           
-          // Copiar apenas as primeiras 4 linhas (cabeçalhos e estrutura)
-          for (let i = 0; i < Math.min(4, rowData.length); i++) {
+          // Copiar TODAS as linhas da planilha modelo
+          for (let i = 0; i < rowData.length; i++) {
             const row = rowData[i];
             if (row && row.values) {
               const rowValues = row.values.map(cell => cell.formattedValue || "");
@@ -1327,7 +1327,57 @@
         );
       }
 
-      // 5. Atualizar o ID da planilha no campo
+      // 5. Limpar linhas a partir da linha 5 nas abas de janeiro a dezembro
+      const clearRequests = [];
+      const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 
+                     'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+      
+      // Obter as abas da nova planilha para encontrar os IDs das abas dos meses
+      const newSpreadsheetResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${newSpreadsheetId}`,
+        {
+          headers: { "Authorization": `Bearer ${accessToken}` }
+        }
+      );
+      
+      if (newSpreadsheetResponse.ok) {
+        const newSpreadsheetData = await newSpreadsheetResponse.json();
+        
+        newSpreadsheetData.sheets.forEach(sheet => {
+          const sheetTitle = sheet.properties.title.toLowerCase();
+          if (meses.includes(sheetTitle)) {
+            clearRequests.push({
+              updateCells: {
+                range: {
+                  sheetId: sheet.properties.sheetId,
+                  startRowIndex: 4, // Linha 5 (índice 4)
+                  endRowIndex: 1000, // Limpar até linha 1000
+                  startColumnIndex: 0,
+                  endColumnIndex: 26 // Coluna Z
+                },
+                fields: "userEnteredValue"
+              }
+            });
+          }
+        });
+      }
+
+      // Aplicar a limpeza das linhas
+      if (clearRequests.length > 0) {
+        await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${newSpreadsheetId}:batchUpdate`,
+          {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${accessToken}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ requests: clearRequests })
+          }
+        );
+      }
+
+      // 6. Atualizar o ID da planilha no campo
       document.getElementById("spreadsheetId").value = newSpreadsheetId;
       salvarConfiguracoes();
 

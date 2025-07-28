@@ -105,7 +105,7 @@
     window.CONFIG = {
       GOOGLE_CLIENT_ID: '',
       GOOGLE_REDIRECT_URI: 'https://despachante.cemaimobiliaria.com.br/',
-      GOOGLE_SCOPE: 'https://www.googleapis.com/auth/spreadsheets'
+      GOOGLE_SCOPE: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
     };
   }
 
@@ -1192,12 +1192,12 @@
       return;
     }
 
-    mostrarAlertaCentralizado("Criando cópia da planilha usando Sheets API...");
+    mostrarAlertaCentralizado("Criando cópia exata da planilha usando Google Drive API...");
     
     try {
-      // 1. Criar nova planilha vazia
-      const createResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets`,
+      // 1. Copiar a planilha usando Google Drive API (copia EXATA com todas as fórmulas e formatação)
+      const copyResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${spreadsheetId}/copy`,
         {
           method: "POST",
           headers: {
@@ -1205,145 +1205,38 @@
             "Authorization": `Bearer ${accessToken}`
           },
           body: JSON.stringify({
-            properties: {
-              title: "CEMA Imobiliária - Controle Financeiro",
-            },
-            sheets: [
-              {
-                properties: {
-                  title: "Configuração",
-                },
-              },
-            ],
-          }),
+            name: "CEMA Imobiliária - Controle Financeiro (Cópia)",
+            parents: [] // Copiar para a raiz do Drive
+          })
         }
       );
 
-      if (!createResponse.ok) {
-        const error = await createResponse.json();
-        mostrarAlertaCentralizado("Erro ao criar planilha: " + (error.error && error.error.message ? error.error.message : ""));
+      if (!copyResponse.ok) {
+        const error = await copyResponse.json();
+        mostrarAlertaCentralizado("Erro ao copiar planilha: " + (error.error && error.error.message ? error.error.message : ""));
         return;
       }
 
-      const newSpreadsheet = await createResponse.json();
-      const newSpreadsheetId = newSpreadsheet.spreadsheetId;
+      const copiedFile = await copyResponse.json();
+      const newSpreadsheetId = copiedFile.id;
 
-      // 2. Obter dados da planilha modelo
-      const modelResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?includeGridData=true`,
-        {
-          headers: { "Authorization": `Bearer ${accessToken}` }
-        }
-      );
-
-      if (!modelResponse.ok) {
-        mostrarAlertaCentralizado("Erro ao acessar planilha modelo");
-        return;
-      }
-
-      const modelData = await modelResponse.json();
-
-      // 3. Copiar estrutura e dados da planilha modelo
-      const requests = [];
-      
-      // Copiar todas as abas da planilha modelo
-      modelData.sheets.forEach((sheet, index) => {
-        if (index > 0) { // Pular a primeira aba (Configuração) que já foi criada
-          requests.push({
-            addSheet: {
-              properties: {
-                title: sheet.properties.title,
-                gridProperties: sheet.properties.gridProperties
-              }
-            }
-          });
-        }
-      });
-
-      // Aplicar as mudanças de estrutura
-      if (requests.length > 0) {
-        await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${newSpreadsheetId}:batchUpdate`,
-          {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${accessToken}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ requests })
-          }
-        );
-      }
-
-      // 4. Copiar TODOS os dados das abas
-      const copyRequests = [];
-      
-      modelData.sheets.forEach((sheet, index) => {
-        if (sheet.data && sheet.data[0] && sheet.data[0].rowData) {
-          const rowData = sheet.data[0].rowData;
-          const values = [];
-          
-          // Copiar TODAS as linhas da planilha modelo
-          for (let i = 0; i < rowData.length; i++) {
-            const row = rowData[i];
-            if (row && row.values) {
-              const rowValues = row.values.map(cell => cell.formattedValue || "");
-              values.push(rowValues);
-            }
-          }
-          
-          if (values.length > 0) {
-            copyRequests.push({
-              updateCells: {
-                range: {
-                  sheetId: index,
-                  startRowIndex: 0,
-                  endRowIndex: values.length,
-                  startColumnIndex: 0,
-                  endColumnIndex: Math.max(...values.map(row => row.length))
-                },
-                rows: values.map(row => ({
-                  values: row.map(cell => ({ userEnteredValue: { stringValue: cell } }))
-                })),
-                fields: "userEnteredValue"
-              }
-            });
-          }
-        }
-      });
-
-      // Aplicar os dados copiados
-      if (copyRequests.length > 0) {
-        await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${newSpreadsheetId}:batchUpdate`,
-          {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${accessToken}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ requests: copyRequests })
-          }
-        );
-      }
-
-      // 5. Limpar linhas a partir da linha 5 nas abas de janeiro a dezembro
+      // 2. Limpar linhas a partir da linha 5 nas abas de janeiro a dezembro
       const clearRequests = [];
       const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 
                      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
       
-      // Obter as abas da nova planilha para encontrar os IDs das abas dos meses
-      const newSpreadsheetResponse = await fetch(
+      // Obter as abas da planilha copiada para encontrar os IDs das abas dos meses
+      const spreadsheetResponse = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${newSpreadsheetId}`,
         {
           headers: { "Authorization": `Bearer ${accessToken}` }
         }
       );
       
-      if (newSpreadsheetResponse.ok) {
-        const newSpreadsheetData = await newSpreadsheetResponse.json();
+      if (spreadsheetResponse.ok) {
+        const spreadsheetData = await spreadsheetResponse.json();
         
-        newSpreadsheetData.sheets.forEach(sheet => {
+        spreadsheetData.sheets.forEach(sheet => {
           const sheetTitle = sheet.properties.title.toLowerCase();
           if (meses.includes(sheetTitle)) {
             clearRequests.push({
@@ -1362,9 +1255,9 @@
         });
       }
 
-      // Aplicar a limpeza das linhas
+      // 3. Aplicar a limpeza das linhas
       if (clearRequests.length > 0) {
-        await fetch(
+        const clearResponse = await fetch(
           `https://sheets.googleapis.com/v4/spreadsheets/${newSpreadsheetId}:batchUpdate`,
           {
             method: "POST",
@@ -1375,14 +1268,19 @@
             body: JSON.stringify({ requests: clearRequests })
           }
         );
+
+        if (!clearResponse.ok) {
+          const error = await clearResponse.json();
+          console.warn("Aviso: Não foi possível limpar algumas linhas: " + (error.error && error.error.message ? error.error.message : ""));
+        }
       }
 
-      // 6. Atualizar o ID da planilha no campo
+      // 4. Atualizar o ID da planilha no campo
       document.getElementById("spreadsheetId").value = newSpreadsheetId;
       salvarConfiguracoes();
 
       mostrarAlertaCentralizado(
-        `Planilha criada com sucesso!<br><a href="https://docs.google.com/spreadsheets/d/${newSpreadsheetId}" target="_blank">Abrir nova planilha</a>`
+        `Planilha copiada com sucesso!<br><a href="https://docs.google.com/spreadsheets/d/${newSpreadsheetId}" target="_blank">Abrir nova planilha</a>`
       );
 
     } catch (error) {

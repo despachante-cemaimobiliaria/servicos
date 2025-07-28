@@ -23,7 +23,7 @@ jobs:
             GOOGLE_CLIENT_ID: '${{ secrets.GOOGLE_CLIENT_ID }}',
             GOOGLE_CLIENT_ID_NAO_AUTORIZADO: '${{ secrets.GOOGLE_CLIENT_ID_NAO_AUTORIZADO }}',
             GOOGLE_REDIRECT_URI: 'https://despachante.cemaimobiliaria.com.br/',
-            GOOGLE_SCOPE: 'https://www.googleapis.com/auth/spreadsheets'
+            GOOGLE_SCOPE: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
           };
           EOF
 

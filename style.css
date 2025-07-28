@@ -623,6 +623,20 @@ select:focus {
   color: #2980b9;
 }
 
+/* Estilo para link desabilitado antes do login */
+.config-help a.disabled {
+  color: #95a5a6 !important;
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  text-decoration: line-through;
+}
+
+.config-help a.disabled:hover {
+  color: #95a5a6 !important;
+  text-decoration: line-through;
+}
+
 /* ===== AÇÕES CENTRALIZADAS ===== */
 .centered-actions {
   text-align: center;

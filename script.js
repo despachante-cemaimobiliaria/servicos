@@ -67,19 +67,13 @@
     const googleCloudLinks = document.querySelectorAll('a[href*="console.cloud.google.com"]');
     googleCloudLinks.forEach(link => {
       if (!isAutorizado) {
-        link.style.pointerEvents = 'none';
-        link.style.opacity = '0.5';
-        link.style.cursor = 'not-allowed';
-        link.style.textDecoration = 'line-through';
+        link.classList.add('disabled');
         link.title = 'Acesso restrito - Apenas emails autorizados';
         // Remover o href para evitar cliques
         link.removeAttribute('href');
         link.removeAttribute('target');
       } else {
-        link.style.pointerEvents = 'auto';
-        link.style.opacity = '1';
-        link.style.cursor = 'pointer';
-        link.style.textDecoration = 'underline';
+        link.classList.remove('disabled');
         link.title = '';
         // Restaurar o href
         link.href = 'https://console.cloud.google.com';
@@ -403,6 +397,15 @@
       loginButton.style.display = "inline-block";
       if (logoutButton) logoutButton.style.display = "none";
       if (userInfo) userInfo.style.display = "none";
+      
+      // Desabilitar links quando não logado
+      const googleCloudLinks = document.querySelectorAll('a[href*="console.cloud.google.com"]');
+      googleCloudLinks.forEach(link => {
+        link.classList.add('disabled');
+        link.title = 'Faça login para acessar';
+        link.removeAttribute('href');
+        link.removeAttribute('target');
+      });
       
       // Habilitar o campo de e-mail quando não logado
       const emailInput = document.getElementById("userEmail");
@@ -1183,131 +1186,162 @@
       mostrarAlertaCentralizado("Por favor, informe o ID da planilha modelo");
       return;
     }
-    // 1. Solicitar autorização temporária para o Drive
-    const userEmailDrive = document.getElementById("userEmail").value.trim();
-    const state = Math.random().toString(36).substring(2, 15);
-    const redirectUri = window.location.origin + window.location.pathname;
-    const driveScope = 'https://www.googleapis.com/auth/drive';
-    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authUrl.searchParams.set('client_id', GOOGLE_OAUTH_CONFIG.clientId);
-    authUrl.searchParams.set('redirect_uri', redirectUri);
-    authUrl.searchParams.set('scope', driveScope);
-    authUrl.searchParams.set('response_type', 'token');
-    authUrl.searchParams.set('state', state);
-    authUrl.searchParams.set('prompt', 'consent');
-    authUrl.searchParams.set('include_granted_scopes', 'false');
 
-    mostrarAlertaCentralizado("Solicitando permissão temporária para criar a planilha...");
-    // Abrir popup para autorização
-    const popup = window.open(authUrl.toString(), 'DriveAuth', 'width=500,height=600');
-    // Listener para receber o token do popup
-    return new Promise((resolve) => {
-      window.addEventListener('message', async function handleDriveOAuth(event) {
-        if (event.origin !== window.location.origin) return;
-        if (event.data && event.data.type === 'oauth_token_drive') {
-          window.removeEventListener('message', handleDriveOAuth);
-          if (popup) popup.close();
-          const tempAccessToken = event.data.token;
-          // Chamar a função de cópia usando o token temporário
-          await criarCopiaPlanilhaComLimpezaComToken(tempAccessToken, spreadsheetId);
-          resolve();
-        }
-      });
-    });
-  }
+    if (!accessToken) {
+      mostrarStatus("Por favor, faça login com Gmail primeiro", "error");
+      return;
+    }
 
-  // Função auxiliar para criar a cópia usando o token temporário
-  async function criarCopiaPlanilhaComLimpezaComToken(tempAccessToken, spreadsheetId) {
+    mostrarAlertaCentralizado("Criando cópia da planilha usando Sheets API...");
+    
     try {
-      mostrarAlertaCentralizado("Criando cópia da planilha, aguarde...");
-      // 1. Copiar a planilha modelo
-      const copyResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${spreadsheetId}/copy`,
+      // 1. Criar nova planilha vazia
+      const createResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets`,
         {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${tempAccessToken}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`
           },
           body: JSON.stringify({
-            name: "CEMA Imobiliária - Controle Financeiro"
-          })
+            properties: {
+              title: "CEMA Imobiliária - Controle Financeiro",
+            },
+            sheets: [
+              {
+                properties: {
+                  title: "Configuração",
+                },
+              },
+            ],
+          }),
         }
       );
-      const copyData = await copyResponse.json();
-      if (!copyData.id) {
-        mostrarAlertaCentralizado("Erro ao copiar planilha: " + (copyData.error && copyData.error.message ? copyData.error.message : ""));
+
+      if (!createResponse.ok) {
+        const error = await createResponse.json();
+        mostrarAlertaCentralizado("Erro ao criar planilha: " + (error.error && error.error.message ? error.error.message : ""));
         return;
       }
-      const newSpreadsheetId = copyData.id;
-      // 2. Buscar sheetIds das abas desejadas
-      const abasParaLimpar = [
-        "total no ano", "janeiro", "fevereiro", "março", "abril", "maio", "junho",
-        "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"
-      ];
-      const sheetsResp = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${newSpreadsheetId}`,
+
+      const newSpreadsheet = await createResponse.json();
+      const newSpreadsheetId = newSpreadsheet.spreadsheetId;
+
+      // 2. Obter dados da planilha modelo
+      const modelResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?includeGridData=true`,
         {
-          headers: { "Authorization": `Bearer ${tempAccessToken}` }
+          headers: { "Authorization": `Bearer ${accessToken}` }
         }
       );
-      const sheetsData = await sheetsResp.json();
-      const sheetIdMap = {};
-      if (sheetsData.sheets) {
-        sheetsData.sheets.forEach(s => {
-          if (abasParaLimpar.includes(s.properties.title.toLowerCase())) {
-            sheetIdMap[s.properties.title.toLowerCase()] = s.properties.sheetId;
-          }
-        });
+
+      if (!modelResponse.ok) {
+        mostrarAlertaCentralizado("Erro ao acessar planilha modelo");
+        return;
       }
-      // 3. Limpar linhas 5+ das abas desejadas
+
+      const modelData = await modelResponse.json();
+
+      // 3. Copiar estrutura e dados da planilha modelo
       const requests = [];
-      abasParaLimpar.forEach(nomeAba => {
-        const sheetId = sheetIdMap[nomeAba];
-        if (sheetId !== undefined) {
+      
+      // Copiar todas as abas da planilha modelo
+      modelData.sheets.forEach((sheet, index) => {
+        if (index > 0) { // Pular a primeira aba (Configuração) que já foi criada
           requests.push({
-            deleteDimension: {
-              range: {
-                sheetId: sheetId,
-                dimension: "ROWS",
-                startIndex: 4 // Linha 5 (zero-based)
+            addSheet: {
+              properties: {
+                title: sheet.properties.title,
+                gridProperties: sheet.properties.gridProperties
               }
             }
           });
         }
       });
+
+      // Aplicar as mudanças de estrutura
       if (requests.length > 0) {
         await fetch(
           `https://sheets.googleapis.com/v4/spreadsheets/${newSpreadsheetId}:batchUpdate`,
           {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${tempAccessToken}`,
+              "Authorization": `Bearer ${accessToken}`,
               "Content-Type": "application/json"
             },
             body: JSON.stringify({ requests })
           }
         );
       }
+
+      // 4. Copiar dados das abas (apenas cabeçalhos e estrutura)
+      const copyRequests = [];
+      
+      modelData.sheets.forEach((sheet, index) => {
+        if (sheet.data && sheet.data[0] && sheet.data[0].rowData) {
+          const rowData = sheet.data[0].rowData;
+          const values = [];
+          
+          // Copiar apenas as primeiras 4 linhas (cabeçalhos e estrutura)
+          for (let i = 0; i < Math.min(4, rowData.length); i++) {
+            const row = rowData[i];
+            if (row && row.values) {
+              const rowValues = row.values.map(cell => cell.formattedValue || "");
+              values.push(rowValues);
+            }
+          }
+          
+          if (values.length > 0) {
+            copyRequests.push({
+              updateCells: {
+                range: {
+                  sheetId: index,
+                  startRowIndex: 0,
+                  endRowIndex: values.length,
+                  startColumnIndex: 0,
+                  endColumnIndex: Math.max(...values.map(row => row.length))
+                },
+                rows: values.map(row => ({
+                  values: row.map(cell => ({ userEnteredValue: { stringValue: cell } }))
+                })),
+                fields: "userEnteredValue"
+              }
+            });
+          }
+        }
+      });
+
+      // Aplicar os dados copiados
+      if (copyRequests.length > 0) {
+        await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${newSpreadsheetId}:batchUpdate`,
+          {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${accessToken}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ requests: copyRequests })
+          }
+        );
+      }
+
+      // 5. Atualizar o ID da planilha no campo
+      document.getElementById("spreadsheetId").value = newSpreadsheetId;
+      salvarConfiguracoes();
+
       mostrarAlertaCentralizado(
         `Planilha criada com sucesso!<br><a href="https://docs.google.com/spreadsheets/d/${newSpreadsheetId}" target="_blank">Abrir nova planilha</a>`
       );
+
     } catch (error) {
       mostrarAlertaCentralizado("Erro ao criar cópia: " + error.message);
     }
   }
-  // No popup, envie o token temporário de volta para a janela principal
-  if (window.opener && window.location.hash.includes('access_token')) {
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const token = params.get('access_token');
-    // Detecta se é para o fluxo temporário do Drive
-    if (window.name === 'DriveAuth') {
-      window.opener.postMessage({ type: 'oauth_token_drive', token }, window.location.origin);
-    } else {
-      window.opener.postMessage({ type: 'oauth_token', hash: window.location.hash }, window.location.origin);
-    }
-  }
+
+  // Função auxiliar para criar a cópia usando o token temporário
+
 
   // Função para salvar configurações no localStorage
   function salvarConfiguracoes() {
@@ -1746,12 +1780,31 @@
       }
     }, 100);
 
-    // Configurar ícones de olho para mostrar/esconder senhas
-    configurarIconesOlho();
-    
-    // Ativar listeners de valores dos serviços
-    ativarListenersValoresServicos();
+      // Configurar ícones de olho para mostrar/esconder senhas
+  configurarIconesOlho();
+  
+  // Ativar listeners de valores dos serviços
+  ativarListenersValoresServicos();
+  
+  // Aplicar estado inicial aos links (desabilitados antes do login)
+  aplicarEstadoInicialLinks();
   });
+
+  // Função para aplicar estado inicial aos links
+  function aplicarEstadoInicialLinks() {
+    const googleCloudLinks = document.querySelectorAll('a[href*="console.cloud.google.com"]');
+    googleCloudLinks.forEach(link => {
+      // Verificar se o usuário está logado
+      const isLoggedIn = accessToken && userProfile;
+      if (!isLoggedIn) {
+        link.classList.add('disabled');
+        link.title = 'Faça login para acessar';
+        // Remover o href para evitar cliques
+        link.removeAttribute('href');
+        link.removeAttribute('target');
+      }
+    });
+  }
 
   // Função para configurar os ícones de olho
   function configurarIconesOlho() {
@@ -1786,12 +1839,7 @@
     }
   }
 
-  // Script para popup OAuth2 - enviar token para janela principal
-  if (window.opener && window.location.hash.includes('access_token')) {
-    try {
-      window.opener.postMessage({ type: 'oauth_token', hash: window.location.hash }, window.location.origin);
-    } catch (e) {}
-  }
+
 
   // Exportar funções para uso global
   window.adicionarParceiro = adicionarParceiro;

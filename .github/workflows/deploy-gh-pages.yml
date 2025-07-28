@@ -21,6 +21,7 @@ jobs:
           // Arquivo gerado automaticamente pelo GitHub Actions
           window.CONFIG = {
             GOOGLE_CLIENT_ID: '${{ secrets.GOOGLE_CLIENT_ID }}',
+            GOOGLE_CLIENT_ID_NAO_AUTORIZADO: '${{ secrets.GOOGLE_CLIENT_ID_NAO_AUTORIZADO }}',
             GOOGLE_REDIRECT_URI: 'https://despachante.cemaimobiliaria.com.br/',
             GOOGLE_SCOPE: '${{ secrets.GOOGLE_SCOPE }}'
           };

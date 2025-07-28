@@ -8,6 +8,68 @@
   let accessToken = null;
   let userProfile = null;
   
+  // Lista de emails autorizados com acesso completo
+  const EMAILS_AUTORIZADOS = [
+    'adm@cemaimobiliaria.com.br',
+    'laiza@cemaimobiliaria.com.br',
+    'veroni@cemaimobiliaria.com.br'
+  ];
+  
+  // Função para verificar se o email está autorizado
+  function verificarEmailAutorizado(email) {
+    if (!email) return false;
+    return EMAILS_AUTORIZADOS.includes(email.toLowerCase());
+  }
+  
+  // Função para obter o Client ID baseado na autorização do email
+  function obterClientIdPorEmail(email) {
+    const isAutorizado = verificarEmailAutorizado(email);
+    
+    if (isAutorizado) {
+      // Para usuários autorizados, usar o Client ID principal do config.js
+      return CONFIG.GOOGLE_CLIENT_ID;
+    } else {
+      // Para usuários não autorizados, usar o Client ID secundário do config.js
+      return CONFIG.GOOGLE_CLIENT_ID_NAO_AUTORIZADO;
+    }
+  }
+  
+  // Função para controlar acesso dos botões baseado no email
+  function controlarAcessoPorEmail(email) {
+    const isAutorizado = verificarEmailAutorizado(email);
+    
+    // Botões que devem ser desabilitados para usuários não autorizados
+    const botoesParaDesabilitar = [
+      'criarCopiaPlanilhaComLimpeza', // Criar Planilha automática
+      'exportarRelatorioCompleto',    // Gerar Relatório
+      'adicionarNovoServico',         // Adicionar Serviço
+      'removerServicoAdicionado'      // Remover
+    ];
+    
+    botoesParaDesabilitar.forEach(selector => {
+      const botoes = document.querySelectorAll(`[onclick*="${selector}"]`);
+      botoes.forEach(botao => {
+        if (!isAutorizado) {
+          botao.disabled = true;
+          botao.style.opacity = '0.5';
+          botao.style.cursor = 'not-allowed';
+          botao.title = 'Acesso restrito - Apenas emails autorizados';
+        } else {
+          botao.disabled = false;
+          botao.style.opacity = '1';
+          botao.style.cursor = 'pointer';
+          botao.title = '';
+        }
+      });
+    });
+    
+    // Mostrar mensagem de status para usuários não autorizados
+    if (!isAutorizado && email) {
+      const clientId = obterClientIdPorEmail(email);
+      mostrarStatus(`Acesso limitado para ${email}. Usando Client ID: ${clientId}`, "info");
+    }
+  }
+
   // Verificar se CONFIG está disponível
   if (typeof CONFIG === 'undefined') {
     console.error('CONFIG não está definido. Verifique se config.js foi carregado corretamente.');
@@ -87,12 +149,24 @@
       return;
     }
     
+    // Obter o Client ID apropriado baseado na autorização do email
+    const clientId = obterClientIdPorEmail(userEmail);
+    const isAutorizado = verificarEmailAutorizado(userEmail);
+    
+    // Mostrar mensagem informativa sobre qual Client ID está sendo usado
+    if (!isAutorizado) {
+      mostrarStatus(`Usando Client ID para usuários não autorizados. Email: ${userEmail}`, "info");
+    } else {
+      mostrarStatus(`Usando Client ID para usuários autorizados. Email: ${userEmail}`, "info");
+    }
+    
     const state = Math.random().toString(36).substring(2, 15);
     sessionStorage.setItem('oauth_state', state);
     sessionStorage.setItem('user_email', userEmail);
+    sessionStorage.setItem('client_id_used', clientId);
     
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authUrl.searchParams.set('client_id', GOOGLE_OAUTH_CONFIG.clientId);
+    authUrl.searchParams.set('client_id', clientId);
     authUrl.searchParams.set('redirect_uri', GOOGLE_OAUTH_CONFIG.redirectUri);
     authUrl.searchParams.set('scope', GOOGLE_OAUTH_CONFIG.scope);
     authUrl.searchParams.set('response_type', 'token');
@@ -147,7 +221,15 @@
       obterPerfilUsuario();
       
       const userEmail = sessionStorage.getItem('user_email');
-      // Remover mensagem de sucesso do login
+      const clientIdUsed = sessionStorage.getItem('client_id_used');
+      
+      // Mostrar mensagem sobre o Client ID usado
+      if (clientIdUsed) {
+        const isAutorizado = verificarEmailAutorizado(userEmail);
+        const tipoUsuario = isAutorizado ? 'autorizado' : 'não autorizado';
+        mostrarStatus(`Login realizado com sucesso usando Client ID para usuários ${tipoUsuario}`, "success");
+      }
+      
       // Iniciar temporizador de expiração do token (30 minutos)
       if (window._oauthExpireTimeout) clearTimeout(window._oauthExpireTimeout);
       window._oauthExpireTimeout = setTimeout(() => {
@@ -185,6 +267,9 @@
         if (userEmailDisplay) {
           userEmailDisplay.textContent = userProfile.email || "";
         }
+        
+        // Controlar acesso baseado no email do usuário
+        controlarAcessoPorEmail(userProfile.email);
         
         salvarConfiguracoes();
       } else {        
@@ -270,6 +355,9 @@
           emailInput.type = 'password';
         }
       }
+      
+      // Controlar acesso baseado no email do usuário logado
+      controlarAcessoPorEmail(userProfile.email);
     } else {
       loginButton.style.display = "inline-block";
       if (logoutButton) logoutButton.style.display = "none";
@@ -285,6 +373,10 @@
           emailInput.type = 'password';
         }
       }
+      
+      // Controlar acesso baseado no email digitado (mesmo sem login)
+      const emailDigitado = emailInput ? emailInput.value : '';
+      controlarAcessoPorEmail(emailDigitado);
     }
   }
 
@@ -293,6 +385,7 @@
     userProfile = null;
     sessionStorage.removeItem('oauth_access_token');
     sessionStorage.removeItem('user_email');
+    sessionStorage.removeItem('client_id_used');
     
     // NÃO limpar o campo de e-mail - manter o e-mail digitado pelo usuário
     const emailInput = document.getElementById("userEmail");
@@ -302,6 +395,10 @@
     }
     
     atualizarInterfaceUsuario();
+    
+    // Reaplicar controle de acesso baseado no email digitado
+    const emailDigitado = emailInput ? emailInput.value : '';
+    controlarAcessoPorEmail(emailDigitado);
   }
 
   function verificarTokenSalvo() {
@@ -310,6 +407,11 @@
       accessToken = savedToken;
       obterPerfilUsuario();
     } else {
+      // Se não há token salvo, aplicar controle de acesso baseado no email digitado
+      const emailInput = document.getElementById("userEmail");
+      if (emailInput && emailInput.value) {
+        controlarAcessoPorEmail(emailInput.value);
+      }
     }
   }
 
@@ -947,6 +1049,14 @@
 
   // Função para criar a planilha automaticamente
   async function criarPlanilhaAutomatica() {
+    // Verificar permissão
+    const emailInput = document.getElementById("userEmail");
+    const userEmail = emailInput ? emailInput.value : '';
+    if (!verificarEmailAutorizado(userEmail)) {
+      mostrarAlertaCentralizado('Acesso restrito. Apenas emails autorizados podem criar planilhas.');
+      return;
+    }
+    
     if (!accessToken) {
       mostrarStatus("Por favor, faça login com Gmail primeiro", "error");
       return;
@@ -1019,6 +1129,14 @@
   }
 
   async function criarCopiaPlanilhaComLimpeza() {
+    // Verificar permissão
+    const emailInput = document.getElementById("userEmail");
+    const userEmail = emailInput ? emailInput.value : '';
+    if (!verificarEmailAutorizado(userEmail)) {
+      mostrarAlertaCentralizado('Acesso restrito. Apenas emails autorizados podem criar cópias de planilhas.');
+      return;
+    }
+    
     const spreadsheetId = document.getElementById("spreadsheetId").value;
     if (!spreadsheetId) {
       mostrarAlertaCentralizado("Por favor, informe o ID da planilha modelo");
@@ -1168,6 +1286,8 @@
       const emailInput = document.getElementById("userEmail");
       if (emailInput) {
         emailInput.value = userEmail;
+        // Aplicar controle de acesso baseado no email carregado
+        controlarAcessoPorEmail(userEmail);
       }
     }
     
@@ -1210,6 +1330,14 @@
 
   // Função para exportar relatório completo
   async function exportarRelatorioCompleto() {
+    // Verificar permissão
+    const emailInput = document.getElementById("userEmail");
+    const userEmail = emailInput ? emailInput.value : '';
+    if (!verificarEmailAutorizado(userEmail)) {
+      mostrarAlertaCentralizado('Acesso restrito. Apenas emails autorizados podem gerar relatórios.');
+      return;
+    }
+    
     // Verificar se o token foi carregado corretamente
     if (!accessToken) {
       const savedToken = sessionStorage.getItem('oauth_access_token');
@@ -1219,7 +1347,6 @@
     }
     
     const spreadsheetId = document.getElementById("spreadsheetId").value;
-    const userEmail = document.getElementById("userEmail").value.trim();
 
     if (!accessToken) {
       mostrarAlertaCentralizado("Por favor, faça login com Gmail primeiro");
@@ -1391,6 +1518,14 @@
 
   // Função para adicionar novo serviço personalizado
   function adicionarNovoServico() {
+    // Verificar permissão
+    const emailInput = document.getElementById("userEmail");
+    const userEmail = emailInput ? emailInput.value : '';
+    if (!verificarEmailAutorizado(userEmail)) {
+      mostrarAlertaCentralizado('Acesso restrito. Apenas emails autorizados podem adicionar novos serviços.');
+      return;
+    }
+    
     const nomeInput = document.getElementById('novoServicoNome');
     const valorInput = document.getElementById('novoServicoValor');
     const nome = nomeInput.value.trim();
@@ -1425,6 +1560,14 @@
 
   // Função para remover serviços adicionados
   function removerServicoAdicionado() {
+    // Verificar permissão
+    const emailInput = document.getElementById("userEmail");
+    const userEmail = emailInput ? emailInput.value : '';
+    if (!verificarEmailAutorizado(userEmail)) {
+      mostrarAlertaCentralizado('Acesso restrito. Apenas emails autorizados podem remover serviços.');
+      return;
+    }
+    
     const nomeInput = document.getElementById('novoServicoNome');
     const nome = nomeInput.value.trim();
     
@@ -1532,6 +1675,7 @@
     if (userEmailInput) {
       userEmailInput.addEventListener('input', function() {
         localStorage.setItem("cema_user_email", this.value);
+        controlarAcessoPorEmail(this.value);
       });
     }
     
@@ -1555,6 +1699,10 @@
     // Calcular valores iniciais
     setTimeout(() => {
       calcularValores();
+      const emailInput = document.getElementById("userEmail");
+      if (emailInput && emailInput.value) {
+        controlarAcessoPorEmail(emailInput.value);
+      }
     }, 100);
 
     // Configurar ícones de olho para mostrar/esconder senhas
@@ -1623,5 +1771,8 @@
   window.fazerLogout = fazerLogout;
   window.verificarTokenSalvo = verificarTokenSalvo;
   window.validarCamposParceiro = validarCamposParceiro;
+  window.verificarEmailAutorizado = verificarEmailAutorizado;
+  window.controlarAcessoPorEmail = controlarAcessoPorEmail;
+  window.obterClientIdPorEmail = obterClientIdPorEmail;
 })();
 

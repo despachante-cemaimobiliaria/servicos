@@ -273,17 +273,17 @@
         
         salvarConfiguracoes();
       } else {        
-        const userEmail = sessionStorage.getItem('user_email');
-        if (userEmail) {
-          userProfile = { email: userEmail, name: 'Usuário' };
+        const userEmailFallback = sessionStorage.getItem('user_email');
+        if (userEmailFallback) {
+          userProfile = { email: userEmailFallback, name: 'Usuário' };
           
           // Salvar e-mail no localStorage para persistir
-          localStorage.setItem("cema_user_email", userEmail);
+          localStorage.setItem("cema_user_email", userEmailFallback);
           
           // Atualizar campo de e-mail na interface
           const emailInput = document.getElementById("userEmail");
           if (emailInput) {
-            emailInput.value = userEmail;
+            emailInput.value = userEmailFallback;
           }
           
           atualizarInterfaceUsuario();
@@ -291,7 +291,7 @@
           // Atualizar display do e-mail
           const userEmailDisplay = document.getElementById("userEmailDisplay");
           if (userEmailDisplay) {
-            userEmailDisplay.textContent = userEmail;
+            userEmailDisplay.textContent = userEmailFallback;
           }
           
           salvarConfiguracoes();
@@ -302,17 +302,17 @@
     } catch (error) {
       console.error('Erro ao obter perfil do usuário:', error);
       // Erro de conexão - usar e-mail do sessionStorage como fallback
-      const userEmail = sessionStorage.getItem('user_email');
-      if (userEmail) {
-        userProfile = { email: userEmail, name: 'Usuário' };
+      const userEmailError = sessionStorage.getItem('user_email');
+      if (userEmailError) {
+        userProfile = { email: userEmailError, name: 'Usuário' };
         
         // Salvar e-mail no localStorage para persistir
-        localStorage.setItem("cema_user_email", userEmail);
+        localStorage.setItem("cema_user_email", userEmailError);
         
         // Atualizar campo de e-mail na interface
         const emailInput = document.getElementById("userEmail");
         if (emailInput) {
-          emailInput.value = userEmail;
+          emailInput.value = userEmailError;
         }
         
         atualizarInterfaceUsuario();
@@ -320,7 +320,7 @@
         // Atualizar display do e-mail
         const userEmailDisplay = document.getElementById("userEmailDisplay");
         if (userEmailDisplay) {
-          userEmailDisplay.textContent = userEmail;
+          userEmailDisplay.textContent = userEmailError;
         }
         
         salvarConfiguracoes();
@@ -335,7 +335,7 @@
     const logoutButton = document.getElementById("logoutButton");
     const userInfo = document.getElementById("userInfo");
     const userName = document.getElementById("userName");
-    const userEmail = document.getElementById("userEmail");
+    const userEmailElement = document.getElementById("userEmail");
     
     if (accessToken && userProfile) {
       loginButton.style.display = "none";
@@ -343,7 +343,7 @@
       if (userInfo) userInfo.style.display = "block";
       
       if (userName) userName.textContent = userProfile.name || "Usuário";
-      if (userEmail) userEmail.textContent = userProfile.email || "";
+      if (userEmailElement) userEmailElement.textContent = userProfile.email || "";
       
       // Manter o campo de e-mail como password quando logado
       const emailInput = document.getElementById("userEmail");

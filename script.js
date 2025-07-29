@@ -1275,9 +1275,9 @@
         }
       }
 
-      // 4. Atualizar o ID da planilha no campo
-      document.getElementById("spreadsheetId").value = newSpreadsheetId;
-      salvarConfiguracoes();
+      // 4. Manter o ID da planilha original (NÃO alterar)
+      // document.getElementById("spreadsheetId").value = newSpreadsheetId; // REMOVIDO
+      // salvarConfiguracoes(); // REMOVIDO
 
       mostrarAlertaCentralizado(
         `Planilha copiada com sucesso!<br><a href="https://docs.google.com/spreadsheets/d/${newSpreadsheetId}" target="_blank">Abrir nova planilha</a>`

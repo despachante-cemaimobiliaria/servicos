@@ -1,6 +1,7 @@
-# CEMA Imobiliária - Sistema de Controle Financeiro
 
-Sistema web completo para controle financeiro do setor de serviços da CEMA Imobiliária, com integração ao Google Sheets, controle de acesso baseado em email, gestão de parceiros e experiência de usuário moderna.
+# CEMA Imobiliária - Sistema de Controle Financeiro de Serviços
+
+Sistema web para controle financeiro dos serviços da CEMA Imobiliária, com integração ao Google Sheets, gestão de parceiros e controle de acesso por email.
 
 ## 📋 Índice
 
@@ -38,6 +39,7 @@ Sistema web completo para controle financeiro do setor de serviços da CEMA Imob
 ## 🔐 Sistema de Controle de Acesso
 
 ### Emails Autorizados
+
 Os seguintes emails têm acesso completo ao sistema:
 - `adm@cemaimobiliaria.com.br`
 - `laiza@cemaimobiliaria.com.br`

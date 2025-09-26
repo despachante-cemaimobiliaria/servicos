@@ -593,7 +593,7 @@
                 <td><input type="text" placeholder="RGI" onchange="calcularValores()"></td>
                 <td><input type="text" placeholder="Número do protocolo" onchange="calcularValores()"></td>
                 <td><input type="number" step="0.01" class="valor-field" placeholder="0,00" onchange="calcularValores()"></td>
-                <td><input type="number" step="0.01" class="valor-field" placeholder="0,00" onchange="calcularValores()"></td>
+                <td><input type="number" step="0.01" id="despesa-desativar"class="valor-field" placeholder="0,00" onchange="calcularValores()"></td>
                 <td class="valor-field" style="background-color: #e8f5e8;">R$ 0,00</td>
                 <td class="valor-field" style="background-color: #f0f8ff;">R$ 0,00</td>
                 <td><input type="text" class="status-input" placeholder="Status"></td>
@@ -646,8 +646,8 @@
       totalDespesas += despesas;
 
       // Cálculo dos percentuais
-      const valorCema = valorCobrado * 0.65 - despesas;
-      const valorParceiros = valorCobrado * 0.35 + despesas;
+      const valorCema = valorCobrado * 0.50 - despesas;
+      const valorParceiros = valorCobrado * 0.50 + despesas;
 
       // Atualizar as células de valores calculados
       const valorFields = linha.querySelectorAll(".valor-field");
@@ -659,9 +659,9 @@
 
     // Atualizar resumo apenas se os elementos existirem
     const totalLiquido = totalFaturado - totalDespesas;
-    const cemaBruto = totalFaturado * 0.65;
+    const cemaBruto = totalFaturado * 0.50;
     const cemaLiquido = cemaBruto - totalDespesas;
-    const parceirosBase = totalFaturado * 0.35;
+    const parceirosBase = totalFaturado * 0.50;
     const parceirosTotal = parceirosBase + totalDespesas;
 
     const totalFaturadoElement = document.getElementById("totalFaturado");
@@ -703,11 +703,11 @@
     }
 
     // Calcular valores por parceiro
-    const valorBaseParceiros = totalFaturado * 0.35;
+    const valorBaseParceiros = totalFaturado * 0.50;
     const despesasPorParceiro = totalDespesas / parceiros.length;
 
     parceiros.forEach(parceiro => {
-      const valorBase = valorBaseParceiros * (parceiro.percentual / 35);
+      const valorBase = valorBaseParceiros * (parceiro.percentual / 50);
       const valorTotal = valorBase + despesasPorParceiro;
 
       const partnerItem = document.createElement("div");
@@ -805,8 +805,8 @@
         const status = statusInput ? statusInput.value : "";
 
         if (valorCobrado > 0) {
-          const valorCema = valorCobrado * 0.65 - despesas;
-          const valorParceiros = valorCobrado * 0.35 + despesas;
+          const valorCema = valorCobrado * 0.50 - despesas;
+          const valorParceiros = valorCobrado * 0.50 + despesas;
 
           dados.push([
             inputs[0].value, // Data
@@ -1403,7 +1403,7 @@
         "Total Despesas",
         "Líquido",
         "CEMA",
-        "Felipe",
+        "Plínio",
       ]);
 
       // Tabela de serviços

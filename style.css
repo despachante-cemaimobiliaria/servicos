@@ -649,6 +649,12 @@ select:focus {
   opacity: 0.5;
 }
 
+/* Desabilitando a coluna de despesas na tabela */
+.services-table th:nth-child(12) {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
 /* ===== AÇÕES CENTRALIZADAS ===== */
 .centered-actions {
   text-align: center;

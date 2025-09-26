@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Sistema de controle financeiro de serviços da CEMA Imobiliária com integração ao Google Sheets.">
+    <link rel="stylesheet" href="style.css">
+
+    <title>CEMA Imobiliária - Controle Financeiro Serviços</title>
+</head>
+
+<body>
+    <div class="header">
+        <img src="img/Logo.png" alt="Logo CEMA" class="logo-cema" style="max-width: 120px; display: block; margin: 0 auto 12px auto;">
+        <h1>CEMA IMOBILIÁRIA</h1>
+        <h2>Controle Financeiro - Setor de Serviços</h2>
+        <p>Integração com Google Sheets</p>
+    </div>
+    <div id="status" class="status" style="display: none;"></div>
+    <main>
+        <section class="config-section">
+            <h3>⚙️ Configuração Google Sheets</h3>
+            <div class="config-grid">
+                <div>
+                    <div class="label-float input-password">
+                        <input type="password" id="userEmail" class="config-input" placeholder=" " name="userEmail"
+                            required>
+                        <label for="userEmail">E-mail Gmail</label>
+                        <img src="https://cdn0.iconfinder.com/data/icons/ui-icons-pack/100/ui-icon-pack-14-512.png"
+                            id="olho-email" class="olho" alt="Mostrar senha">
+                    </div>
+                </div>
+                <div>
+                    <div class="label-float input-password">
+                        <input type="password" id="spreadsheetId" class="config-input" placeholder=" "
+                            name="spreadsheetId" value="" required>
+                        <label for="spreadsheetId">ID da Planilha</label>
+                        <img src="https://cdn0.iconfinder.com/data/icons/ui-icons-pack/100/ui-icon-pack-14-512.png"
+                            id="olho-spreadsheet" class="olho" alt="Mostrar senha">
+                    </div>
+                </div>
+                <div style="display: flex; align-items: flex-end; min-width: 180px;">
+                    <button id="loginButton" class="btn btn-oauth" onclick="iniciarLoginGmail()">🔐 Fazer Login com
+                        Gmail</button>
+                </div>
+            </div>
+            
+            <!-- Informações do usuário logado -->
+            <div id="userInfo" class="user-info" style="display: none;">
+                <span><strong>Usuário logado:</strong></span>
+                <span id="userName">Nome do usuário</span>
+                <span id="userEmailDisplay">email@exemplo.com</span>
+                <button id="logoutButton" class="btn-logout" onclick="fazerLogout()" style="margin-top: 10px;">🚪 Fazer Logout</button>
+            </div>
+            
+            <p class="config-help">
+                <strong>Como configurar:</strong><br>
+                1. Digite seu e-mail Gmail no campo acima<br>
+                2. Cole o ID da planilha Google Sheets<br>
+                3. Clique em "Fazer Login com Gmail"<br>
+                4. Autorize o acesso à sua conta Google<br>
+                5. O sistema estará pronto para uso!<br><br>
+                <strong>⚠️ Importante:</strong><br>
+                • Apenas e-mails autorizados na lista terão acesso ao sistema<br>
+                • Se o login falhar, verifique se seu e-mail está na lista de usuários permitidos<br>
+                • Para adicionar novos e-mails, edite a função verificarEmailAutorizado() no código<br><br>
+                <div class="dev-section">
+                    <strong id="devSection">🔧 Para Desenvolvedores:</strong><br>
+                    • Se aparecer erro "invalid_client", configure o Client ID OAuth2 no arquivo script.js<br>
+                    • Acesse <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a><br>
+                    • Crie credenciais OAuth2 e substitua o Client ID no código<br>
+                    • A lista de e-mails autorizados é obrigatória - não há modo de teste
+                </div>
+            </p>
+            
+            <div style="margin-top: 15px;">
+                <button class="btn btn-add" onclick="criarCopiaPlanilhaComLimpeza()">🆕 Criar Planilha Automática</button>
+                <button class="btn btn-sync" onclick="exportarRelatorioCompleto()">📊 Gerar Relatório</button>
+            </div>
+        </section>
+        <section class="month-selector">
+            <label for="mes">Mês/Ano: </label>
+            <select id="mes">
+                <option value="2025-01" selected>Janeiro</option>
+                <option value="2025-02">Fevereiro</option>
+                <option value="2025-03">Março</option>
+                <option value="2025-04">Abril</option>
+                <option value="2025-05">Maio</option>
+                <option value="2025-06">Junho</option>
+                <option value="2025-07">Julho</option>
+                <option value="2025-08">Agosto</option>
+                <option value="2025-09">Setembro</option>
+                <option value="2025-10">Outubro</option>
+                <option value="2025-11">Novembro</option>
+                <option value="2025-12">Dezembro</option>
+            </select>
+        </section>
+        <section class="partners-section">
+            <h3>🤝 Parceiros</h3>
+            <div class="partners-container">
+                <div class="partners-list" id="partnersList">
+                    <!-- Parceiros serão adicionados dinamicamente -->
+                </div>
+                <div id="partnerAlert" class="alert alert-danger"
+                    style="display:none; margin-bottom: 10px; padding: 8px 12px; font-size: 1em;" role="alert"></div>
+                <div class="add-partner-form was-validated">
+                    <div id="input-name-parceiro" class="label-float">
+                        <input type="text" id="partnerName" class="partner-input" placeholder=" " onfocus="this.classList.add('is-focused')" onblur="this.classList.remove('is-focused')" oninput="validarCamposParceiro()" required>
+                        <label for="partnerName">Nome do parceiro</label>
+                        <div class="invalid-feedback" id="partnerNameFeedback">Preencha o nome do parceiro.</div>
+                    </div>
+                    <div class="label-float">
+                        <input type="number" id="partnerPercentage" class="partner-input" placeholder=" " min="0" max="100" step="0.01" onfocus="this.classList.add('is-focused')" onblur="this.classList.remove('is-focused')" oninput="validarCamposParceiro()" required>
+                        <label for="partnerPercentage">Percentual (%)</label>
+                        <div class="invalid-feedback" id="partnerPercentageFeedback">Percentual deve ser maior que 0 e menor ou igual a 100.</div>
+                    </div>
+                    <button class="btn btn-add" id="btnAddPartner" onclick="adicionarParceiro()">+ Adicionar Parceiro</button>
+                </div>
+                <div id="partnerInputError" style="color: #e74c3c; font-size: 0.95em; margin-top: 4px; display: none;">
+                </div>
+            </div>
+            <p class="partners-help">
+                <strong>Nota:</strong> A soma dos percentuais dos parceiros deve ser 35%. O percentual restante (65%) é
+                da CEMA.
+            </p>
+        </section>
+        <section class="services-reference">
+            <h3>💰 Tabela de Serviços e Valores</h3>
+            <div class="services-grid" id="servicesGrid">
+                <div class="service-item">
+                    <span>Registro com financiamento</span>
+                    <input type="number" class="service-value-input" data-nome="Registro com financiamento" value="800" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+                <div class="service-item">
+                    <span>Registro à vista</span>
+                    <input type="number" class="service-value-input" data-nome="Registro à vista" value="500" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+                <div class="service-item">
+                    <span>Averbação</span>
+                    <input type="number" class="service-value-input" data-nome="Averbação" value="300" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+                <div class="service-item">
+                    <span>Guia de Laudêmio do SPU</span>
+                    <input type="number" class="service-value-input" data-nome="Guia de Laudêmio do SPU" value="100" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+                <div class="service-item">
+                    <span>Laudêmio da prefeitura</span>
+                    <input type="number" class="service-value-input" data-nome="Laudêmio da prefeitura" value="700" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+                <div class="service-item">
+                    <span>Laudêmio das famílias</span>
+                    <input type="number" class="service-value-input" data-nome="Laudêmio das famílias" value="700" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+                <div class="service-item">
+                    <span>Laudêmio do São Bento</span>
+                    <input type="number" class="service-value-input" data-nome="Laudêmio do São Bento" value="700" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+                <div class="service-item">
+                    <span>Laudêmio da Igreja da Glória</span>
+                    <input type="number" class="service-value-input" data-nome="Laudêmio da Igreja da Glória" value="700" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+                <div class="service-item">
+                    <span>Laudêmio da Mitra</span>
+                    <input type="number" class="service-value-input" data-nome="Laudêmio da Mitra" value="700" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+                <div class="service-item">
+                    <span>Emissão de guia de ITBI</span>
+                    <input type="number" class="service-value-input" data-nome="Emissão de guia de ITBI" value="100" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+                <div class="service-item">
+                    <span>Emissão de certidão por nome</span>
+                    <input type="number" class="service-value-input" data-nome="Emissão de certidão por nome" value="100" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+                <div class="service-item">
+                    <span>Transferência de conta</span>
+                    <input type="number" class="service-value-input" data-nome="Transferência de conta" value="100" min="0" step="0.01" style="width: 90px; margin-left: 8px;"> 
+                </div>
+            </div>
+            <div class="add-service-form" style="margin-top: 16px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                <input type="text" id="novoServicoNome" class="partner-input" placeholder="Nome do novo serviço" style="min-width: 180px;">
+                <input type="number" id="novoServicoValor" class="partner-input" placeholder="Valor (R$)" min="0" step="0.01" style="width: 120px;">
+                <button class="btn btn-add" onclick="adicionarNovoServico()">+ Adicionar Serviço</button>
+                <button class="btn btn-clear" onclick="removerServicoAdicionado()">🗑️ Remover</button>
+            </div>
+            <p style="margin-top: 8px; font-size: 0.9em; color: #666;">
+                <strong>💡 Dica:</strong> Para remover um serviço, digite apenas o nome no campo "Nome do novo serviço" e clique em "Remover Serviço". 
+                Serviços padrão não podem ser removidos.
+            </p>
+        </section>
+        <div class="centered-actions">
+            <button class="btn btn-add" onclick="adicionarLinha()">+ Adicionar Novo Serviço</button>
+            <button class="btn btn-sync" onclick="enviarParaGoogleSheets()">📤 Enviar para Google Sheets</button>
+            <button class="btn btn-load" onclick="carregarDadosGoogleSheets()">📥 Carregar do Google Sheets</button>
+            <button class="btn btn-clear" onclick="limparTabelaServicos()">🧹 Limpar</button>
+        </div>
+
+        <div id="status" class="status"></div>
+        <section class="services-table">
+            <table id="tabelaServicos">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Cliente Comprador</th>
+                        <th>Tel. Comprador</th>
+                        <th>Cliente Vendedor</th>
+                        <th>Tel. Vendedor</th>
+                        <th>Endereço Imóvel</th>
+                        <th>Tipo de Serviço</th>
+                        <th>Previsão de Conclusão</th>
+                        <th>RGI</th>
+                        <th>Protocolo</th>
+                        <th>Valor Cobrado</th>
+                        <th>Despesas</th>
+                        <th>CEMA (50%)</th>
+                        <th>Parceiros (50%)</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="corpoTabela">
+                    <!-- Linhas serão adicionadas dinamicamente -->
+                </tbody>
+            </table>
+        </section>
+        <section class="summary">
+            <div class="summary-card">
+                <h3>Resumo Mensal</h3>
+                <div>Total Faturado: <span class="summary-value" id="totalFaturado">R$ 0,00</span></div>
+                <div>Total Despesas: <span class="summary-value" id="totalDespesas">R$ 0,00</span></div>
+                <div>Líquido: <span class="summary-value" id="totalLiquido">R$ 0,00</span></div>
+            </div>
+            <div class="summary-card">
+                <h3>CEMA (50%)</h3>
+                <div>Valor Bruto: <span class="summary-value" id="cemaBruto">R$ 0,00</span></div>
+                <div>Despesas: <span class="summary-value" id="cemaDespesas" disabled>R$ 0,00</span></div>
+                <div>Valor Líquido: <span class="summary-value" id="cemaLiquido">R$ 0,00</span></div>
+            </div>
+            <div class="summary-card">
+                <h3>Parceiros (50%)</h3>
+                <div id="partnersSummary">
+                    <!-- Resumo dos parceiros será adicionado dinamicamente -->
+                </div>
+            </div>
+                  </section>
+      </main>
+    
+    <footer class="footer">
+        <div class="footer-content">
+            <p>&copy; 2025 CEMA Imobiliária - Sistema de Controle Financeiro</p>
+            <p>Desenvolvido com para otimizar seus processos</p>
+        </div>
+    </footer>
+    
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>

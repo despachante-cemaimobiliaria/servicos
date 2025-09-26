@@ -1787,8 +1787,6 @@
     }
   }
 
-
-
   // Exportar funções para uso global
   window.adicionarParceiro = adicionarParceiro;
   window.removerParceiro = removerParceiro;

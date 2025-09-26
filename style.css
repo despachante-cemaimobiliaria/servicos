@@ -638,7 +638,7 @@ select:focus {
 }
 
 /* Desabilitando a tag do input das despesas */
-#empresaDespesas,#totalDespesas, #despesa-desativar {
+#empresaDespesas,#totalDespesas, #despesa-desativar, #cemaDespesas {
   pointer-events: none;
   opacity: 0.5;
 }
